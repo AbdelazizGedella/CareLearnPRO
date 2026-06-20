@@ -2,28 +2,22 @@
 
 **تعلم منظم. حضور موثق. متابعة أسهل.**
 
-CareLearn Pro هو نظام تدريبي بسيط للمؤسسات يساعد على نشر الكورسات، متابعة الحضور، إدارة الأقسام، وتصدير سجلات الحضور.
+CareLearn Pro منصة تدريب داخلية بسيطة لإدارة الكورسات، الأقسام، الحضور، والتقارير.
 
 **Structured learning. Verified attendance. Easier follow-up.**
 
-CareLearn Pro is a lightweight training platform for publishing courses, tracking attendance, managing departments, and exporting attendance records.
+CareLearn Pro is a lightweight internal learning platform for courses, departments, attendance, and reporting.
 
 ## Highlights
 
-- 📚 Courses and training files
+- 📚 Courses and materials
 - 🧑‍💼 Course Manager access
-- 🏥 Department-based assignment
+- 🏥 Department-based enrollment
 - ✍️ E-signature attendance
-- 📊 Coverage and pending dashboards
-- 🌙 Light and dark mode
-- 📄 PDF / Google Docs attendance export
+- 📊 Coverage dashboard
+- 🌙 Light / Dark mode
+- 📄 Google Docs and PDF export
 
 ## App
 
-GitHub Pages:
-
 https://abdelazizgedella.github.io/CareLearnPRO/public/index.html
-
----
-
-Built for focused internal learning workflows.
