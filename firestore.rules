@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? userDoc().data.role
+        : 'User';
+    }
+
+    function isAdmin() {
+      return signedIn() && userRole() in ['SuperAdmin', 'Admin', 'TrainingAdmin'];
+    }
+
+    function isManager() {
+      return signedIn() && userRole() in ['SuperAdmin', 'Admin', 'TrainingAdmin', 'Manager', 'DepartmentHead', 'CourseBuilder', 'Head', 'CourseManager'];
+    }
+
+    function isCourseManagerRole() {
+      return signedIn() && userRole() == 'CourseManager';
+    }
+
+    function userDepartments() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? userDoc().data.departments
+        : [];
+    }
+
+    function managesDepartment(department) {
+      return isAdmin() || (isManager() && department in userDepartments());
+    }
+
+    function courseDepartments(courseData) {
+      return courseData.keys().hasAny(['departments']) ? courseData.departments : [courseData.department];
+    }
+
+    function managesDepartments(departments) {
+      return departments.size() > 0 && (isAdmin() || (isManager() && departments.hasOnly(userDepartments())));
+    }
+
+    function managesCourse(courseData) {
+      return isAdmin()
+        || (isCourseManagerRole() && courseData.managerUid == request.auth.uid)
+        || (isCourseManagerRole() && courseData.createdBy == request.auth.token.email)
+        || (!isCourseManagerRole() && isManager() && courseDepartments(courseData).hasAny(userDepartments()));
+    }
+
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isManager());
+      allow update: if signedIn() && (
+        request.auth.uid == uid || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if signedIn() && (
+        resource.data.status == 'Active' ||
+        isAdmin() ||
+        resource.data.managerUid == request.auth.uid ||
+        resource.data.createdBy == request.auth.token.email
+      );
+      allow create: if signedIn()
+        && request.resource.data.managerUid == request.auth.uid
+        && managesDepartments(courseDepartments(request.resource.data));
+      allow update: if signedIn()
+        && managesCourse(resource.data)
+        && managesDepartments(courseDepartments(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /attendance/{attendanceId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && !exists(/databases/$(database)/documents/attendance/$(attendanceId));
+      allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        (isManager() && resource.data.department in userDepartments())
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    match /courseRequests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.status == 'Pending'
+        && !exists(/databases/$(database)/documents/courseRequests/$(requestId));
+      allow read: if signedIn() && (
+        resource.data.requesterUid == request.auth.uid ||
+        isManager() ||
+        managesCourse(get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data)
+      );
+      allow update: if signedIn() && (
+        isAdmin() ||
+        managesCourse(get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow create: if signedIn();
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /clientLogs/{logId} {
+      allow create: if signedIn();
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+  }
+}

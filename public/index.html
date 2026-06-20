@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareLearn Pro</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=carelearn-dark-neon-rtl-20260620-1" />
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="brand-badge">CL</div>
+      <h1>CareLearn Pro</h1>
+      <p class="muted">Learning, attendance, e-signature, and department training follow-up.</p>
+      <button id="googleLoginBtn" class="btn google-btn">
+        <span>G</span>
+        Continue with Google / الدخول بحساب Google
+      </button>
+      <p class="small-note">No password is stored in CareLearn Pro.</p>
+<p class="small-note"> Safe & Secured </p>
+
+
+      <div id="loginError" class="alert error hidden"></div>
+    </div>
+  </div>
+
+  <div id="loader" class="loader hidden">
+    <div class="loader-card">
+      <div class="spinner"></div>
+      <strong id="loaderPercent">0%</strong>
+      <p id="loaderMsg">Loading...</p>
+      <div class="loader-bar"><span id="loaderBar"></span></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">CL</div>
+        <div>
+          <h2>CareLearn Pro</h2>
+          <p>Education Hub Made Easy </p>
+        </div>
+      </div>
+      <div class="user-mini">
+        <strong id="miniName">User</strong>
+        <span id="miniEmail"></span>
+        <span id="miniRole"></span>
+      </div>
+      <nav class="nav">
+        <button class="active" data-page="dashboard">🏠 Dashboard</button>
+        <button data-page="courses">📚 Courses</button>
+        <button data-page="attendance">🖊 Attendance</button>
+        <button data-page="profile">👤 Profile</button>
+        <button id="adminNav" data-page="admin" class="hidden">⚙️ Admin</button>
+      </nav>
+      <button id="logoutBtn" class="btn secondary sidebar-logout">Sign out</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Dashboard / لوحة التحكم</h1>
+          <p id="pageSubtitle">Welcome to your training workspace.</p>
+        </div>
+        <div class="top-actions">
+          <button id="themeToggleBtn" class="btn secondary" type="button">Dark Mode</button>
+          <button id="reloadBtn" class="btn secondary">Refresh</button>
+          <span id="appVersion" class="pill">CareLear Pro V2 </span>
+        </div>
+      </header>
+
+      <section id="page-dashboard" class="page">
+        <div id="profileAlert" class="alert warn hidden">Please complete your profile and electronic signature before submitting any course.</div>
+        <div class="stats-grid">
+          <div class="card stat"><span>Assigned / المكلف</span><strong id="statAssigned">0</strong></div>
+          <div class="card stat"><span>Completed / مكتمل</span><strong id="statCompleted">0</strong></div>
+          <div class="card stat"><span>Pending / متبقي</span><strong id="statPending">0</strong></div>
+          <div class="card stat due"><span>Due / متأخر</span><strong id="statDue">0</strong></div>
+          <div class="card stat"><span>Coverage / التغطية</span><strong id="statCoverage">0%</strong></div>
+        </div>
+        <div class="grid-two">
+          <div class="card">
+            <div class="section-title">
+              <div><h3>Courses by Department</h3><p>Table view grouped by department.</p></div>
+              <button class="btn secondary" data-go="courses">Open Library</button>
+            </div>
+            <div id="dashboardCourses"></div>
+          </div>
+          <div class="card">
+            <div class="section-title"><div><h3>Due Courses</h3><p>Not opened after 7 days from availability.</p></div></div>
+            <div id="dueCoursesBox"></div>
+          </div>
+        </div>
+        <div id="managerDashboardBox" class="card hidden">
+          <div class="section-title">
+            <div><h3>Course Manager Coverage</h3><p>Coverage percentage and pending members for managed courses.</p></div>
+            <button class="btn secondary" data-go="attendance">Open Attendance</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Course</th><th>Members</th><th>Completed</th><th>Pending</th><th>Coverage</th><th>Still Pending</th></tr></thead>
+              <tbody id="managerCoverageBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-courses" class="page hidden">
+        <div class="card">
+          <div class="section-title">
+            <div><h3>Courses Library Breakdown</h3><p>Courses are organized as tables under each department.</p></div>
+            <button id="refreshCoursesBtn" class="btn secondary">Refresh</button>
+          </div>
+          <div id="coursesBreakdown"></div>
+        </div>
+      </section>
+
+      <section id="page-attendance" class="page hidden">
+        <div class="card">
+          <div class="section-title">
+            <div><h3>Attendance Records</h3><p>Admins and managers can filter by department and course.</p></div>
+            <div class="actions-inline">
+              <button id="loadAttendanceBtn" class="btn secondary">Load</button>
+              <button id="exportCsvBtn" class="btn secondary">Export CSV</button>
+              <button id="exportDocsBtn" class="btn">Google Docs Export</button>
+            </div>
+          </div>
+          <div class="filter-grid">
+            <label>Department<select id="attendanceDepartment"><option value="">All permitted departments</option></select></label>
+            <label>Course<select id="attendanceCourse"><option value="">All courses</option></select></label>
+            <label>Cycle<input id="attendanceCycle" placeholder="2026-06 or ONE-TIME"></label>
+            <label>Search<input id="attendanceSearch" placeholder="Name / course"></label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>SN</th><th>Name</th><th>Job ID</th><th>Profession</th><th>Department</th><th>Course</th><th>Date</th><th>Time</th><th>Score</th><th>Duration</th><th>Signature</th></tr></thead>
+              <tbody id="attendanceBody"></tbody>
+            </table>
+          </div>
+          <form id="docsExportForm" method="post" target="_blank" class="hidden">
+            <input type="hidden" name="payload" id="docsPayload">
+          </form>
+          <div id="exportHint" class="hint-box hidden"></div>
+        </div>
+      </section>
+
+      <section id="page-profile" class="page hidden">
+        <div class="card">
+          <div class="section-title">
+            <div><h3>My Profile</h3><p>The saved signature is copied into attendance records when a course is completed.</p></div>
+            <button id="saveProfileBtn" class="btn">Save Profile</button>
+          </div>
+          <div class="form-grid">
+            <label>Full Name<input id="profileName"></label>
+            <label>Job ID<input id="profileJobId"></label>
+            <label>Job Title<input id="profileJobTitle"></label>
+            <label>Profession<select id="profileProfession"></select></label>
+            <label>Mobile<input id="profileMobile"></label>
+            <label>Department<select id="profileDepartment"></select></label>
+            <div class="signature-section full">
+              <div>
+                <label>Electronic Signature / التوقيع الإلكتروني</label>
+                <div class="signature-pad"><canvas id="signatureCanvas"></canvas></div>
+                <div class="signature-actions">
+                  <button id="clearSignatureBtn" class="btn secondary" type="button">Clear</button>
+                  <span class="muted">Small pad. The system crops the actual signature only.</span>
+                </div>
+              </div>
+              <div class="signature-preview">
+                <strong>Saved Signature</strong>
+                <div id="signaturePreview" class="signature-preview-box">No signature saved yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-admin" class="page hidden">
+        <div class="card">
+          <div class="section-title">
+            <div><h3>Admin Course Builder</h3><p>Use Google Drive links for learning files. MCQ is optional.</p></div>
+            <button id="saveCourseBtn" class="btn">Save Course</button>
+          </div>
+          <div class="form-grid">
+            <label>Course ID<input id="courseId" placeholder="Leave blank for new course"></label>
+            <label>Course Name<input id="courseName"></label>
+            <label>Departments<select id="courseDepartment" multiple size="6"></select></label>
+            <label>Main Content URL<input id="courseContentUrl" placeholder="Google Drive / Docs / Slides link"></label>
+            <label>Required Minutes<input id="courseRequiredMinutes" type="number" min="0" value="1"></label>
+            <label>Pass Score<input id="coursePassScore" type="number" min="0" max="100" value="80"></label>
+            <label>Repetition<select id="courseCycle"><option selected>Monthly</option><option>Yearly</option></select></label>
+            <label>Status<select id="courseStatus"><option>Active</option><option>Inactive</option></select></label>
+            <label class="full">Brief<input id="courseBrief"></label>
+            <label class="full">Description<textarea id="courseDescription"></textarea></label>
+            <label class="full">Upload Course Files<input id="courseUploadFiles" type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.mp4,.mov,.png,.jpg,.jpeg,.txt"></label>
+            <div class="actions-right full"><button id="uploadCourseFilesBtn" class="btn secondary" type="button">Upload to Super Admin Drive</button></div>
+            <label class="full">Additional Drive Links<textarea id="courseFiles" placeholder="One link per line. Example: Policy PDF | https://drive.google.com/..."></textarea></label>
+          </div>
+          <div class="question-builder">
+            <div class="section-title compact">
+              <div><h3>MCQ Questions</h3><p>Optional. If empty, the course passes after required time.</p></div>
+              <button id="addQuestionBtn" class="btn secondary" type="button">+ Question</button>
+            </div>
+            <div id="questionsBuilder"></div>
+          </div>
+        </div>
+        <div id="courseManagementBox" class="card hidden">
+          <div class="section-title">
+            <div><h3>Course Groups</h3><p>Approve requests or add selected members manually.</p></div>
+          </div>
+          <div class="section-title compact"><div><h3>Managed Courses</h3><p>Edit or deactivate courses you created.</p></div></div>
+          <div class="table-wrap compact-course-table">
+            <table>
+              <thead><tr><th>Course</th><th>Departments</th><th>Cycle</th><th>Status</th><th>Members</th><th>Actions</th></tr></thead>
+              <tbody id="managedCoursesBody"></tbody>
+            </table>
+          </div>
+          <div class="grid-two">
+            <div>
+              <div class="section-title compact"><div><h3>Members</h3><p>Search by exact email, name, or Job ID.</p></div></div>
+              <div class="form-grid">
+                <label>Course<select id="memberCourseSelect"></select></label>
+                <label>Add member<input id="memberSearch" placeholder="email / name / job ID"></label>
+              </div>
+              <div class="actions-right">
+                <button id="addDepartmentMembersBtn" class="btn secondary" type="button">Add Department Members</button>
+                <button id="addMemberBtn" class="btn" type="button">Add Member</button>
+              </div>
+              <div id="membersList" class="member-list"></div>
+            </div>
+            <div>
+              <div class="section-title compact"><div><h3>Join Requests</h3><p>Pending requests for managed courses.</p></div></div>
+              <label>Course<select id="requestCourseSelect"></select></label>
+              <div id="requestsList" class="member-list"></div>
+            </div>
+          </div>
+        </div>
+        <div id="roleAdminBox" class="card hidden">
+          <div class="section-title">
+            <div><h3>Course Manager Access</h3><p>Super Admin can assign Course Managers to limited departments.</p></div>
+            <button id="saveUserRoleBtn" class="btn" type="button">Save Access</button>
+          </div>
+          <div class="form-grid">
+            <label>User<select id="adminUserSelect"></select></label>
+            <label>Role<select id="adminRoleSelect"><option>User</option><option>CourseManager</option><option>Manager</option><option>DepartmentHead</option><option>TrainingAdmin</option><option>Admin</option><option>SuperAdmin</option></select></label>
+            <label class="full">Limited Departments<select id="adminDepartmentsSelect" multiple size="8"></select></label>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">
+            <div><h3>Export Settings</h3><p>Apps Script URL is used only for creating Google Docs/PDF attendance files.</p></div>
+            <button id="saveLocalSettingsBtn" class="btn secondary">Save locally</button>
+          </div>
+          <label>Apps Script Export Web App URL<input id="appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="courseModal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div><h3 id="modalCourseTitle">Course</h3><p id="modalCourseMeta" class="muted"></p></div>
+        <button id="closeCourseModalBtn" class="btn secondary">Close</button>
+      </div>
+      <div class="modal-body">
+        <div id="completedNotice" class="alert success hidden"></div>
+        <div id="courseHero" class="course-hero"></div>
+        <p id="modalCourseDescription" class="muted"></p>
+        <div class="actions-inline">
+          <button id="openMainContentBtn" class="btn">View Main Content</button>
+          <a id="openContentNewTabBtn" class="btn secondary hidden" target="_blank" rel="noopener">Open in New Tab</a>
+        </div>
+        <div id="contentViewerBox" class="content-viewer-box hidden">
+          <iframe id="contentViewer" title="Course content" allowfullscreen></iframe>
+        </div>
+        <div id="courseFilesBox" class="file-links"></div>
+        <div id="timerPanel" class="timer-panel">
+          <div><strong>Learning Time Progress</strong><div class="progress"><span id="timeProgress"></span></div><p id="timeHint" class="muted"></p></div>
+          <div id="timerText" class="timer-text">00:00</div>
+        </div>
+        <div id="quizBox"></div>
+        <div class="actions-right"><button id="submitCourseBtn" class="btn success">Submit Completion</button></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script type="module" src="app.js?v=secure-config-20260620-1"></script>
+</body>
+</html>

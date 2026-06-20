@@ -1,0 +1,25 @@
+# Local Firebase/runtime config
+public/firebase-config.js
+.firebaserc
+
+# Logs and debug output
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Local/editor/runtime folders
+.agents/
+.codex/
+.vscode/
+.idea/
+node_modules/
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local backup snapshots
+Old index + styles/
