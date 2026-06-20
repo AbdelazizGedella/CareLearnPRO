@@ -25,8 +25,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Require Firebase config secret
+        if: ${{ env.CARELEARN_FIREBASE_CONFIG_JS == '' }}
+        env:
+          CARELEARN_FIREBASE_CONFIG_JS: ${{ secrets.CARELEARN_FIREBASE_CONFIG_JS }}
+        run: |
+          echo "Missing GitHub secret: CARELEARN_FIREBASE_CONFIG_JS"
+          exit 1
+
       - name: Write Firebase config from GitHub Secret
-        if: ${{ env.CARELEARN_FIREBASE_CONFIG_JS != '' }}
         env:
           CARELEARN_FIREBASE_CONFIG_JS: ${{ secrets.CARELEARN_FIREBASE_CONFIG_JS }}
         run: |

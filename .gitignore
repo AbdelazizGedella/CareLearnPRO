@@ -1,6 +1,10 @@
 # Local Firebase project alias
 .firebaserc
 
+# Local Firebase web config
+# GitHub Pages deployment writes this file from the CARELEARN_FIREBASE_CONFIG_JS secret.
+public/firebase-config.js
+
 # Logs and debug output
 *.log
 firebase-debug.log
