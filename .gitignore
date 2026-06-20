@@ -1,5 +1,4 @@
-# Local Firebase/runtime config
-public/firebase-config.js
+# Local Firebase project alias
 .firebaserc
 
 # Logs and debug output
