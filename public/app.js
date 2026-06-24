@@ -177,6 +177,28 @@ function coursePublisherDepartment(course) {
     (courseDepartments(course) || [])[0] ||
     'Not specified';
 }
+
+async function hydrateCoursePublisherUsers(courses=[]) {
+  const ids = unique(courses.flatMap(course => [
+    course?.publisherUid,
+    course?.postedByUid,
+    course?.managerUid,
+    course?.createdByUid
+  ]));
+  const existing = new Set(state.users.map(user => user.id));
+  for (const uid of ids) {
+    if (!uid || existing.has(uid)) continue;
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (snap.exists()) {
+        state.users.push({ id: snap.id, ...snap.data() });
+        existing.add(uid);
+      }
+    } catch (e) {
+      await logClient('hydrateCoursePublisherUsers', e.message || String(e), { uid });
+    }
+  }
+}
 function toDate(v) {
   if (!v) return null;
   if (v instanceof Date) return v;
@@ -419,6 +441,7 @@ async function loadCourses() {
       const opened = course.lastOpenedAt || false;
       return { ...course, cycleKey: cycle, completed: !!completedRec, completedRecord: completedRec || null, isDue: course.status === 'Active' && isCourseMember(course) && !completedRec && !opened && daysAvailable > 7, dueDays: daysAvailable };
     });
+  await hydrateCoursePublisherUsers(state.courses);
 }
 async function loadAttendance() {
   const rows = [];
@@ -488,6 +511,7 @@ function hydrateUserBox() {
   $('adminNav').classList.toggle('hidden', !canManageCourses());
   if ($('analyticsNav')) $('analyticsNav').classList.toggle('hidden', !isManager());
   $('profileAlert').classList.toggle('hidden', !!state.profile.profileCompleted);
+  syncAttendanceToolbar();
 }
 function fillSelects() {
   const depOptions = ['<option value="">Select department</option>'].concat(DEFAULT_DEPARTMENTS.map(d => `<option>${escapeHtml(d)}</option>`)).join('');
@@ -588,7 +612,10 @@ function buildPlannerHtml(courses) {
     const isToday = key === keyOf(today);
     cells.push(`
       <div class="calendar-day ${isMuted ? 'is-muted' : ''} ${isToday ? 'is-today' : ''}">
-        <span class="calendar-day-number">${cellDate.getDate()}</span>
+        <div class="calendar-day-top">
+          <span class="calendar-day-number">${cellDate.getDate()}</span>
+          ${events.some(course => course.completed) ? '<span class="calendar-completed-check" title="Completed">✓</span>' : ''}
+        </div>
         <div class="calendar-events">
           ${events.slice(0, 3).map(course => `
             <button type="button" class="calendar-event ${courseStatusClass(course)} open-course" data-id="${escapeHtml(course.id)}">
@@ -869,7 +896,17 @@ function buildCoursesBreakdownHtml(courses, compact) {
       </tr>`).join('');
   return `<div class="table-wrap compact-course-table"><table><thead><tr><th>Course</th><th>Department</th><th>Course Date</th><th>Time</th><th>Repetition of this Course</th><th>PASS</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
+
+function syncAttendanceToolbar() {
+  const showActions = !!isManager();
+  ['loadAttendanceBtn','exportCsvBtn','exportDocsBtn'].forEach(id => {
+    const el = $(id);
+    if (el) el.classList.toggle('hidden', !showActions);
+  });
+}
+
 function renderAttendance() {
+  syncAttendanceToolbar();
   const profession = $('attendanceProfession')?.value || '';
   const courseId = $('attendanceCourse')?.value || '';
   let records = state.attendance.slice();
