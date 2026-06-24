@@ -32,10 +32,10 @@ if (!FIREBASE_CONFIG?.apiKey) {
 }
 
 const DEFAULT_DEPARTMENTS = [
-  'Housekeeping & Maintenance','Nursing Services Dir. Office Dept.','Patient Services Director Office','Laboratory Department','Jiwar-Hr','Quality Improvement Dept.','Er Pharmacy-Alharam','Respiratory Therapy','Operation Services Director Office','Emergency Department','Director General Office','Safety & Secuity','Supply Chain','Medical Services Dir. Office','Jiwar-Icu','Radoiology Department','Jiwar-Finance & Accounting','It Department','Physical Therapy','Jiwar-Nursing Icu'
+  'Emergency Nursing Department','ICU Nursing Department','CCU Nursing Department','Emergency Physician Department','ICU Physician Department','CCU Physician Department','IPC Department','Quality Department','Radiology Department','Medical Records Department','Reception Department','Social Services Department','House Keeping Department','Pharmacy Department','IT Department','Respiratory Therapy','Supply Chain Department','Safety & Security Department','Physical Therapy Department','Operation Services Department','Laboratory Department'
 ];
 const DEFAULT_PROFESSIONS = [
-  'Housekeeper','Staff Nurses - Primary','Social Worker','Laboratory Head','Staff Nurses - ER','Laboratory Specialist','Executive Secretary','HR Coordinator','Medical Approval Coordinator','Quality & Patient Safety specialist','HR Officer','Medical records specialist','Receptionist','Pharmacist','Respiratory Therapy Specialist','Driver','General Practitioner','Security Guard','Senior Registrar ER Physician','Infection Control Specialist','Staff Nurse','Nursing Supervisor','Registrar Anesthesia','Porter','Admin Director','Shift Supervisor','Duty Manager','Registrar ER Physician','Radiology Registrar','Clinical Nutritionist','Senior Registrar Orthopedic Surgeon','Encoder','Registrar Internal Medicine','Radiology Specialist','Supervisor','AC Technician','Electrician Technician','Plumber','Accountant','IT Helpdesk','Gas Technican','Physical Therapist','Consultant Critical Care Medicine','Head Ambulatory & Emergency Care/ Senior Registrar ER physician','Registrar ICU','Registrar Cardiology'
+  'Housekeeper','Staff Nurse','Social Worker','Laboratory Head','Laboratory Specialist','Executive Secretary','HR Coordinator','Medical Approval Coordinator','Quality & Patient Safety specialist','HR Officer','Medical records specialist','Receptionist','Pharmacist','Respiratory Therapy Specialist','Driver','General Practitioner','Security Guard','Senior Registrar ER Physician','Infection Control Specialist','Nursing Supervisor','Registrar Anesthesia','Porter','Admin Director','Shift Supervisor','Duty Manager','Registrar ER Physician','Radiology Registrar','Clinical Nutritionist','Senior Registrar Orthopedic Surgeon','Encoder','Registrar Internal Medicine','Radiology Specialist','Supervisor','AC Technician','Electrician Technician','Plumber','Accountant','IT Helpdesk','Gas Technican','Physical Therapist','Consultant Critical Care Medicine','Head Ambulatory & Emergency Care/ Senior Registrar ER physician','Registrar ICU','Registrar Cardiology'
 ];
 
 const app = initializeApp(FIREBASE_CONFIG);
@@ -63,7 +63,8 @@ const state = {
   canvasReady: false,
   signatureCtx: null,
   drawing: false,
-  questionsDraft: []
+  questionsDraft: [],
+  plannerMonthOffset: 0
 };
 
 const $ = (id) => document.getElementById(id);
@@ -549,7 +550,165 @@ function renderDashboard() {
   const dueCourses = state.courses.filter(c => c.isDue);
   $('dueCoursesBox').innerHTML = dueCourses.length ? dueCourses.map(c => `<div class="alert warn"><strong>${escapeHtml(c.courseName)}</strong><br>${escapeHtml(courseDepartments(c).join(', '))} · ${courseDateLabel(c)} · ${c.dueDays} days</div>`).join('') : '<div class="empty">No due courses.</div>';
   renderManagerDashboard();
+  bindPlannerMonthNav();
   bindOpenButtons();
+}
+
+
+function userTrainingAttendanceRows() {
+  return state.attendance.filter(row =>
+    row.userId === state.user?.uid ||
+    row.email === state.user?.email ||
+    row.userEmail === state.user?.email ||
+    (!row.userId && !row.email && !row.userEmail && !isManager())
+  );
+}
+function monthTrainingMinutes(year, monthIndex) {
+  return userTrainingAttendanceRows().reduce((total, row) => {
+    const completedAt = toDate(row.completedAt);
+    if (!completedAt) return total;
+    if (completedAt.getFullYear() !== year || completedAt.getMonth() !== monthIndex) return total;
+    return total + Number(row.durationMinutes || row.duration || 0);
+  }, 0);
+}
+function allTrainingMinutes() {
+  return userTrainingAttendanceRows().reduce((total, row) => total + Number(row.durationMinutes || row.duration || 0), 0);
+}
+function formatTrainingHours(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes || 0)));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return `${hours}h ${mins}m`;
+}
+function buildTrainingHoursCard(year, monthIndex) {
+  const currentMinutes = monthTrainingMinutes(year, monthIndex);
+  const previousDate = new Date(year, monthIndex - 1, 1);
+  const previousMinutes = monthTrainingMinutes(previousDate.getFullYear(), previousDate.getMonth());
+  const overallMinutes = allTrainingMinutes();
+  const currentHours = formatTrainingHours(currentMinutes);
+  const previousHours = formatTrainingHours(previousMinutes);
+  const overallHours = formatTrainingHours(overallMinutes);
+  const currentMonthLabel = new Date(year, monthIndex, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  const previousMonthLabel = previousDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  const currentVsPrevious = previousMinutes ? Math.round(((currentMinutes - previousMinutes) / previousMinutes) * 100) : (currentMinutes ? 100 : 0);
+  const trendLabel = currentVsPrevious > 0 ? `+${currentVsPrevious}%` : `${currentVsPrevious}%`;
+  const points = [
+    Math.max(1, previousMinutes * .55),
+    Math.max(1, previousMinutes || currentMinutes * .35),
+    Math.max(1, (previousMinutes + currentMinutes) / 2 || 1),
+    Math.max(1, currentMinutes || 1),
+    Math.max(1, currentMinutes * .62 || previousMinutes * .85 || 1),
+    Math.max(1, overallMinutes ? Math.max(currentMinutes, previousMinutes) * .72 : 1)
+  ];
+  const max = Math.max(...points, 1);
+  const coords = points.map((value, index) => {
+    const x = 20 + index * 54;
+    const y = 112 - ((value / max) * 76);
+    return `${x},${y}`;
+  }).join(' ');
+  return `
+    <section class="training-hours-card" aria-label="Training hours summary">
+      <div class="training-hours-glow"></div>
+      <div class="training-hours-top">
+        <span>Training hours summary</span>
+        <small>${escapeHtml(currentMonthLabel)}</small>
+      </div>
+      <svg class="training-hours-chart" viewBox="0 0 310 130" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="trainingLineGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#38bdf8"/>
+            <stop offset="55%" stop-color="#60a5fa"/>
+            <stop offset="100%" stop-color="#a78bfa"/>
+          </linearGradient>
+        </defs>
+        <path class="training-grid-line" d="M18 100 H292 M18 72 H292 M18 44 H292" />
+        <polyline class="training-line" points="${coords}" />
+        <circle class="training-dot" cx="${20 + 3 * 54}" cy="${112 - ((points[3] / max) * 76)}" r="7" />
+      </svg>
+      <div class="training-hours-main">
+        <span>This month</span>
+        <strong>${currentHours}</strong>
+        <em>${escapeHtml(trendLabel)} vs last month</em>
+      </div>
+      <div class="training-hours-stats">
+        <div><span>${escapeHtml(previousMonthLabel)}</span><strong>${previousHours}</strong></div>
+        <div><span>Overall</span><strong>${overallHours}</strong></div>
+      </div>
+    </section>`;
+}
+
+
+function plannerBaseDate(course) {
+  const value = courseDateValue(course);
+  const parts = String(value || '').split('-').map(Number);
+  if (parts.length === 3 && parts.every(Boolean)) return new Date(parts[0], parts[1] - 1, parts[2]);
+  const fallback = toDate(course?.courseDate || course?.postedDate || course?.availableFrom || course?.createdAt) || new Date();
+  return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+}
+function plannerOccurrenceCycle(course, date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const q = Math.floor(date.getMonth() / 3) + 1;
+  const cycle = String(course?.cycle || 'One Time').toLowerCase();
+  if (cycle === 'monthly') return `${y}-${m}`;
+  if (cycle === 'quarterly') return `${y}-Q${q}`;
+  if (cycle === 'semi annual') return `${y}-H${date.getMonth() < 6 ? 1 : 2}`;
+  if (cycle === 'annual' || cycle === 'yearly') return `${y}`;
+  return 'ONE-TIME';
+}
+function plannerCompletedRecord(course, occurrenceCycle) {
+  return state.attendance.find(row =>
+    row.courseId === course.id &&
+    (
+      String(row.cycle || '') === occurrenceCycle ||
+      (occurrenceCycle === 'ONE-TIME' && (!row.cycle || row.cycle === 'ONE-TIME'))
+    ) &&
+    (
+      row.userId === state.user?.uid ||
+      row.email === state.user?.email ||
+      row.userEmail === state.user?.email ||
+      isManager()
+    )
+  ) || null;
+}
+function plannerOccurrenceDateForMonth(course, year, month) {
+  const base = plannerBaseDate(course);
+  const baseYear = base.getFullYear();
+  const baseMonth = base.getMonth();
+  const baseDay = base.getDate();
+  const monthDiff = (year - baseYear) * 12 + (month - baseMonth);
+  const cycle = String(course?.cycle || 'One Time').toLowerCase();
+  const day = Math.min(baseDay, new Date(year, month + 1, 0).getDate());
+
+  if (cycle === 'monthly') {
+    if (monthDiff < 0) return null;
+    return new Date(year, month, day);
+  }
+  if (cycle === 'annual' || cycle === 'yearly') {
+    if (year < baseYear || month !== baseMonth) return null;
+    return new Date(year, month, day);
+  }
+  if (cycle === 'quarterly') {
+    if (monthDiff < 0 || monthDiff % 3 !== 0) return null;
+    return new Date(year, month, day);
+  }
+  if (cycle === 'semi annual') {
+    if (monthDiff < 0 || monthDiff % 6 !== 0) return null;
+    return new Date(year, month, day);
+  }
+
+  return (year === baseYear && month === baseMonth) ? new Date(year, month, day) : null;
+}
+function plannerCourseForOccurrence(course, date) {
+  const cycle = plannerOccurrenceCycle(course, date);
+  const completedRecord = plannerCompletedRecord(course, cycle);
+  return {
+    ...course,
+    cycleKey: cycle,
+    completed: !!completedRecord,
+    completedRecord: completedRecord || null,
+    isDue: !completedRecord && !!course.isDue
+  };
 }
 
 function buildPlannerHtml(courses) {
@@ -559,20 +718,12 @@ function buildPlannerHtml(courses) {
 
   if (!assigned.length) return '<div class="empty">No assigned courses in your current planner.</div>';
 
-  const parseCourseDate = (course) => {
-    const value = courseDateValue(course);
-    const parts = String(value || '').split('-').map(Number);
-    if (parts.length === 3 && parts.every(Boolean)) return new Date(parts[0], parts[1] - 1, parts[2]);
-    const fallback = toDate(course?.courseDate || course?.createdAt) || new Date();
-    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
-  };
   const pad = (n) => String(n).padStart(2, '0');
   const keyOf = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
   const today = new Date();
-  const thisMonthKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}`;
-  const hasCurrentMonthCourses = assigned.some(course => courseDateValue(course).startsWith(thisMonthKey));
-  const baseDate = hasCurrentMonthCourses ? today : parseCourseDate(assigned[0]);
+  const monthOffset = Number(state.plannerMonthOffset || 0);
+  const baseDate = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
 
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth();
@@ -583,9 +734,11 @@ function buildPlannerHtml(courses) {
   const daysInPrevMonth = new Date(year, month, 0).getDate();
 
   const eventsByDay = assigned.reduce((map, course) => {
-    const key = courseDateValue(course);
+    const occurrenceDate = plannerOccurrenceDateForMonth(course, year, month);
+    if (!occurrenceDate) return map;
+    const key = keyOf(occurrenceDate);
     if (!map[key]) map[key] = [];
-    map[key].push(course);
+    map[key].push(plannerCourseForOccurrence(course, occurrenceDate));
     return map;
   }, {});
 
@@ -610,11 +763,16 @@ function buildPlannerHtml(courses) {
     const key = keyOf(cellDate);
     const events = eventsByDay[key] || [];
     const isToday = key === keyOf(today);
+    const hasCompleted = events.some(course => course.completed);
+    const hasPending = events.some(course => !course.completed && isCourseMember(course));
     cells.push(`
       <div class="calendar-day ${isMuted ? 'is-muted' : ''} ${isToday ? 'is-today' : ''}">
         <div class="calendar-day-top">
           <span class="calendar-day-number">${cellDate.getDate()}</span>
-          ${events.some(course => course.completed) ? '<span class="calendar-completed-check" title="Completed">✓</span>' : ''}
+          <span class="calendar-day-symbols">
+            ${hasCompleted ? '<span class="calendar-completed-check" title="Completed">✓</span>' : ''}
+            ${hasPending ? '<span class="calendar-pending-check" title="Pending">!</span>' : ''}
+          </span>
         </div>
         <div class="calendar-events">
           ${events.slice(0, 3).map(course => `
@@ -634,11 +792,31 @@ function buildPlannerHtml(courses) {
           <h4>${escapeHtml(monthName)}</h4>
           <span>${assigned.length} assigned course${assigned.length === 1 ? '' : 's'} in your planner</span>
         </div>
-        <div class="calendar-nav-fake" aria-hidden="true"><span>‹</span><span>›</span></div>
+        <div class="calendar-nav-fake">
+          <button type="button" class="calendar-month-nav" data-month-step="-1" aria-label="Previous month">‹</button>
+          <button type="button" class="calendar-month-nav" data-month-step="1" aria-label="Next month">›</button>
+        </div>
       </div>
       <div class="calendar-weekdays">${weekdays.map(day => `<div>${day}</div>`).join('')}</div>
       <div class="calendar-grid">${cells.join('')}</div>
-    </div>`;
+    </div>
+    ${buildTrainingHoursCard(year, month)}`;
+}
+
+function bindPlannerMonthNav() {
+  qsa('.calendar-month-nav').forEach(btn => {
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.plannerMonthOffset = Number(state.plannerMonthOffset || 0) + Number(btn.dataset.monthStep || 0);
+      const trackedCourses = state.courses.filter(c => c.status === 'Active' && isCourseMember(c));
+      if ($('dashboardPlanner')) $('dashboardPlanner').innerHTML = buildPlannerHtml(trackedCourses);
+      bindPlannerMonthNav();
+      bindOpenButtons();
+    });
+  });
 }
 function renderManagerDashboard() {
   const box = $('managerDashboardBox');
