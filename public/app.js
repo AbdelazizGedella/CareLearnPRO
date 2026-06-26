@@ -64,7 +64,17 @@ const state = {
   signatureCtx: null,
   drawing: false,
   questionsDraft: [],
-  plannerMonthOffset: 0
+  plannerMonthOffset: 0,
+  attendanceAudit: {
+    timer: null,
+    running: false,
+    courseId: '',
+    lastCount: 0,
+    lastActivityAt: null,
+    startedAt: null,
+    checks: 0,
+    rows: []
+  }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -167,6 +177,33 @@ function coursePublisherName(course) {
     'CareLearn Admin'
   ) || 'CareLearn Admin';
 }
+
+function publisherLibraryDepartment(user) {
+  if (!user) return '';
+  return String(user.publisherLibraryDepartment || user.libraryDepartment || user.courseLibraryDepartment || user.primaryDepartment || (user.departments || [])[0] || '').trim();
+}
+function courseLibraryDepartment(course) {
+  const user = coursePublisherUser(course);
+  return String(
+    publisherLibraryDepartment(user) ||
+    course?.publisherLibraryDepartment ||
+    course?.libraryDepartment ||
+    course?.courseLibraryDepartment ||
+    course?.publisherDepartment ||
+    course?.postedByDepartment ||
+    course?.createdByDepartment ||
+    coursePublisherDepartment(course) ||
+    'Unclassified'
+  ).trim() || 'Unclassified';
+}
+function libraryDepartmentOptions() {
+  return unique([
+    ...DEFAULT_DEPARTMENTS,
+    ...state.users.map(publisherLibraryDepartment),
+    ...state.courses.map(courseLibraryDepartment)
+  ]).sort((a, b) => a.localeCompare(b));
+}
+
 function coursePublisherDepartment(course) {
   const user = coursePublisherUser(course);
   return course?.publisherDepartment ||
@@ -296,6 +333,29 @@ function canManageCourse(course) {
   if (isAdminRole()) return true;
   if (isCourseManagerRole()) return course.managerUid === state.user?.uid || course.createdBy === state.user?.email;
   return course.managerUid === state.user?.uid || courseDepartments(course).some(canManageDepartment);
+}
+
+function isCourseOriginalPublisher(course) {
+  if (!state.user || !course) return false;
+  const ids = [
+    course.publisherUid,
+    course.postedByUid,
+    course.managerUid,
+    course.createdByUid
+  ].filter(Boolean);
+  const emails = [
+    course.publisherEmail,
+    course.postedByEmail,
+    course.managerEmail,
+    course.createdByEmail,
+    course.createdBy
+  ].filter(Boolean).map(v => String(v).toLowerCase());
+  return ids.includes(state.user.uid) || emails.includes(String(state.user.email || '').toLowerCase());
+}
+function canEditCourse(course) {
+  if (!state.profile || !course) return false;
+  if (isSuperAdmin()) return true;
+  return isCourseOriginalPublisher(course);
 }
 function isRequestOnlyCourse(course) {
   return false;
@@ -526,6 +586,70 @@ function fillSelects() {
   $('attendanceCourse').innerHTML = '<option value="">All courses</option>' + state.courses.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.courseName)}</option>`).join('');
   if ($('courseDate') && !$('courseDate').value) $('courseDate').value = dateOnly(new Date());
 }
+
+function departmentSymbol(department='') {
+  const d = String(department).toLowerCase();
+  if (d.includes('emergency') && d.includes('nursing')) return '🚑';
+  if (d.includes('icu') && d.includes('nursing')) return '🏥';
+  if (d.includes('ccu') && d.includes('nursing')) return '❤️';
+  if (d.includes('emergency') && d.includes('physician')) return '🩺';
+  if (d.includes('icu') && d.includes('physician')) return '👨‍⚕️';
+  if (d.includes('ccu') && d.includes('physician')) return '💓';
+  if (d.includes('ipc')) return '🦠';
+  if (d.includes('quality')) return '✅';
+  if (d.includes('radiology')) return '🩻';
+  if (d.includes('medical records')) return '📋';
+  if (d.includes('reception')) return '🛎️';
+  if (d.includes('social')) return '🤝';
+  if (d.includes('house')) return '🧹';
+  if (d.includes('pharmacy')) return '💊';
+  if (d.includes('it')) return '💻';
+  if (d.includes('respiratory')) return '🫁';
+  if (d.includes('supply')) return '📦';
+  if (d.includes('safety') || d.includes('security')) return '🛡️';
+  if (d.includes('physical')) return '♿';
+  if (d.includes('operation')) return '⚙️';
+  if (d.includes('laboratory')) return '🧪';
+  return '📚';
+}
+function departmentCourseCount(department, courses=state.courses) {
+  return courses.filter(course => course.status === 'Active' && courseDepartments(course).includes(department)).length;
+}
+function departmentGridList(courses=state.courses) {
+  const profileDeps = userDepartmentSet();
+  const visible = isAdminRole() || isManager() ? DEFAULT_DEPARTMENTS : DEFAULT_DEPARTMENTS.filter(dep => profileDeps.includes(dep));
+  return visible.filter(dep => departmentCourseCount(dep, courses) > 0);
+}
+function buildDepartmentCoursesGrid(courses=state.courses) {
+  const groups = {};
+  courses
+    .filter(course => course.status === 'Active')
+    .forEach(course => {
+      const group = courseLibraryDepartment(course);
+      if (!groups[group]) groups[group] = [];
+      if (!groups[group].some(existing => existing.id === course.id)) groups[group].push(course);
+    });
+
+  const visibleGroups = [
+    ...DEFAULT_DEPARTMENTS.filter(dep => groups[dep]?.length),
+    ...Object.keys(groups).filter(dep => !DEFAULT_DEPARTMENTS.includes(dep)).sort((a, b) => a.localeCompare(b))
+  ];
+
+  if (!visibleGroups.length) return '<div class="empty">No course groups with active courses yet.</div>';
+
+  return visibleGroups.map((group, index) => {
+    const count = groups[group].length;
+    return `
+      <article class="department-course-card library-group-home-card dept-tone-${(index % 6) + 1}">
+        <div class="department-course-symbol library-group-symbol" aria-hidden="true">${departmentSymbol(group)}</div>
+        <div class="department-course-footer library-group-footer">
+          <h4>${escapeHtml(group)}</h4>
+          <span>${count} ${count === 1 ? 'Course' : 'Courses'}</span>
+        </div>
+      </article>`;
+  }).join('');
+}
+
 function renderAll() { renderDashboard(); renderCourses(); renderAnalytics(); renderAttendance(); fillProfileForm(); renderCourseManagement(); renderRoleAdmin(); }
 function renderDashboard() {
   const trackedCourses = state.courses.filter(c => c.status === 'Active' && isCourseMember(c));
@@ -545,6 +669,7 @@ function renderDashboard() {
   if ($('departmentPostedCourses')) $('departmentPostedCourses').textContent = trackedCourses.length;
   if ($('attendanceAccomplished')) $('attendanceAccomplished').textContent = completed;
   if ($('dashboardPlanner')) $('dashboardPlanner').innerHTML = buildPlannerHtml(trackedCourses);
+  if ($('homeDepartmentCoursesGrid')) $('homeDepartmentCoursesGrid').innerHTML = buildDepartmentCoursesGrid(state.courses);
 
   $('dashboardCourses').innerHTML = buildCoursesBreakdownHtml(state.courses.slice(0, 10), true);
   const dueCourses = state.courses.filter(c => c.isDue);
@@ -842,6 +967,111 @@ function renderCourses() {
   $('coursesBreakdown').innerHTML = buildCoursesBreakdownHtml(state.courses, false);
   bindOpenButtons();
 }
+
+function setupAttendanceAuditCourses(managedCourses=state.courses.filter(canManageCourse)) {
+  const select = $('auditCourseSelect');
+  if (!select) return;
+  const current = select.value;
+  const options = managedCourses
+    .slice()
+    .sort((a, b) => String(a.courseName || '').localeCompare(String(b.courseName || '')))
+    .map(course => `<option value="${escapeHtml(course.id)}">${escapeHtml(course.courseName)} · ${escapeHtml(courseLibraryDepartment(course))}</option>`)
+    .join('');
+  select.innerHTML = `<option value="">Select course</option>${options}`;
+  if (managedCourses.some(course => course.id === current)) select.value = current;
+}
+function attendanceAuditRowsForCourse(courseId) {
+  return state.attendance
+    .filter(row => row.courseId === courseId)
+    .sort((a, b) => (toDate(b.completedAt)?.getTime() || 0) - (toDate(a.completedAt)?.getTime() || 0));
+}
+function renderAttendanceAuditPanel(rows=null) {
+  const audit = state.attendanceAudit;
+  const data = rows || audit.rows || [];
+  if ($('auditStatusText')) $('auditStatusText').value = audit.running ? 'Running - checking every 10 seconds' : 'Stopped';
+  if ($('auditTotalCount')) $('auditTotalCount').textContent = data.length;
+  if ($('auditNewCount')) $('auditNewCount').textContent = Math.max(0, data.length - Number(audit.startCount || 0));
+  if ($('auditChecksCount')) $('auditChecksCount').textContent = audit.checks || 0;
+  if ($('auditLastUpdate')) $('auditLastUpdate').textContent = audit.lastActivityAt ? timeOnly(audit.lastActivityAt) : '--:--';
+  if ($('auditLiveHint')) {
+    $('auditLiveHint').textContent = audit.running
+      ? 'Live audit is active. It will stop after 1 minute without new attendance.'
+      : 'Live audit is stopped.';
+    $('auditLiveHint').classList.toggle('running', !!audit.running);
+  }
+  const body = $('auditAttendanceBody');
+  if (body) {
+    body.innerHTML = data.length ? data.slice(0, 20).map(row => `
+      <tr>
+        <td>${escapeHtml(row.name || row.userName || row.email || row.userEmail || '')}</td>
+        <td>${escapeHtml(row.jobId || '')}</td>
+        <td>${escapeHtml(row.department || '')}</td>
+        <td>${escapeHtml(dateOnly(row.completedAt))} ${escapeHtml(timeOnly(row.completedAt))}</td>
+        <td>${escapeHtml(row.score ?? '')}</td>
+        <td>${escapeHtml(row.durationMinutes || row.duration || 0)} min</td>
+      </tr>`).join('') : '<tr><td colspan="6">No attendance found for this course yet.</td></tr>';
+  }
+}
+async function fetchAttendanceAuditRows(courseId) {
+  const snap = await getDocs(query(collection(db, 'attendance'), where('courseId', '==', courseId)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (toDate(b.completedAt)?.getTime() || 0) - (toDate(a.completedAt)?.getTime() || 0));
+}
+async function runAttendanceAuditCheck() {
+  const audit = state.attendanceAudit;
+  if (!audit.running || !audit.courseId) return;
+  audit.checks = Number(audit.checks || 0) + 1;
+  try {
+    const rows = await fetchAttendanceAuditRows(audit.courseId);
+    const previousCount = Number(audit.lastCount || 0);
+    audit.rows = rows;
+    audit.lastCount = rows.length;
+    const now = new Date();
+    if (rows.length > previousCount) {
+      audit.lastActivityAt = now;
+      toast(`${rows.length - previousCount} new attendance record(s) captured.`, 'success');
+    }
+    renderAttendanceAuditPanel(rows);
+    const idleMs = now - (audit.lastActivityAt || audit.startedAt || now);
+    if (idleMs >= 60000) {
+      stopAttendanceAudit('No new attendance for 1 minute. Live audit stopped automatically.');
+    }
+  } catch (e) {
+    stopAttendanceAudit(e.message || String(e));
+    toast(`Attendance audit stopped: ${e.message || e}`, 'error');
+  }
+}
+async function startAttendanceAudit() {
+  const courseId = $('auditCourseSelect')?.value || '';
+  if (!courseId) return toast('Please select a course first.', 'warn');
+  const course = state.courses.find(c => c.id === courseId);
+  if (!course || !canManageCourse(course)) return toast('You cannot audit this course.', 'error');
+  stopAttendanceAudit('', false);
+  const existingRows = await fetchAttendanceAuditRows(courseId).catch(() => attendanceAuditRowsForCourse(courseId));
+  state.attendanceAudit = {
+    timer: null,
+    running: true,
+    courseId,
+    startCount: existingRows.length,
+    lastCount: existingRows.length,
+    lastActivityAt: new Date(),
+    startedAt: new Date(),
+    checks: 0,
+    rows: existingRows
+  };
+  renderAttendanceAuditPanel(existingRows);
+  await runAttendanceAuditCheck();
+  state.attendanceAudit.timer = setInterval(runAttendanceAuditCheck, 10000);
+  toast('Live attendance audit started.', 'success');
+}
+function stopAttendanceAudit(message='', showToast=true) {
+  if (state.attendanceAudit?.timer) clearInterval(state.attendanceAudit.timer);
+  state.attendanceAudit.timer = null;
+  state.attendanceAudit.running = false;
+  renderAttendanceAuditPanel(state.attendanceAudit.rows || []);
+  if (message && showToast) toast(message, message.toLowerCase().includes('error') ? 'error' : 'warn');
+}
+
 function renderAnalytics() {
   const page = $('page-analytics');
   if (!page) return;
@@ -854,6 +1084,8 @@ function renderAnalytics() {
   }
   setupMonthlyTrainingFilters(managed);
   renderMonthlyTrainingCoverage(managed);
+  setupAttendanceAuditCourses(managed);
+  renderAttendanceAuditPanel();
 }
 function selectedAnalyticsMonth() {
   const input = $('analyticsTrainingMonth');
@@ -1026,8 +1258,7 @@ function buildManagerDepartmentCoverageHtml(managedCourses) {
 function buildCoursesBreakdownHtml(courses, compact) {
   if (!courses.length) return '<div class="empty">No courses available yet.</div>';
 
-  if (!compact) {
-    return `<div class="course-cards-grid">${courses.map((c, index) => `
+  const courseCardHtml = (c, index) => `
       <article class="course-box-card course-box-card-v2 course-card-clickable color-${(index % 5) + 1}" data-id="${escapeHtml(c.id)}" data-action="${isCourseMember(c) ? 'open' : 'request'}" tabindex="0" role="button" aria-label="${escapeHtml(c.courseName)}">
         <div class="course-title-zone">
           <h4>${escapeHtml(c.courseName)}</h4>
@@ -1058,7 +1289,28 @@ function buildCoursesBreakdownHtml(courses, compact) {
             </tr>
           </tbody>
         </table>
-      </article>`).join('')}</div>`;
+      </article>`;
+
+  if (!compact) {
+    const groups = {};
+    courses.forEach(course => {
+      const groupName = courseLibraryDepartment(course);
+      if (!groups[groupName]) groups[groupName] = [];
+      if (!groups[groupName].some(existing => existing.id === course.id)) groups[groupName].push(course);
+    });
+
+    const orderedDepartments = [
+      ...DEFAULT_DEPARTMENTS.filter(dep => groups[dep]?.length),
+      ...Object.keys(groups).filter(dep => !DEFAULT_DEPARTMENTS.includes(dep)).sort((a, b) => a.localeCompare(b))
+    ];
+
+    if (!orderedDepartments.length) return '<div class="empty">No courses available for your library sections.</div>';
+
+    return `<div class="library-department-groups">${orderedDepartments.map(dep => `
+      <section class="department-block library-department-block">
+        <h3><span>${escapeHtml(dep)}</span><b>${groups[dep].length} ${groups[dep].length === 1 ? 'Course' : 'Courses'}</b></h3>
+        <div class="course-cards-grid">${groups[dep].map(courseCardHtml).join('')}</div>
+      </section>`).join('')}</div>`;
   }
 
   const rows = courses.map(c => `
@@ -1282,7 +1534,13 @@ async function saveCourse() {
     const id = explicitId || stableCourseIdFromName(courseName);
     const duplicate = state.courseNameIndex.find(course => course.id !== id && (course.courseKey || normalizeCourseName(course.courseName)) === courseKey);
     if (duplicate) throw new Error(`A course with the same name already exists: ${duplicate.courseName}`);
-    const data = {
+
+    const ref = doc(db, 'courses', id);
+    const oldCourse = state.courses.find(course => course.id === id);
+    if (oldCourse && !explicitId) throw new Error('A course with the same name already exists. Open it from Managed Courses to edit it.');
+    if (oldCourse && !canEditCourse(oldCourse)) throw new Error('Only the original course publisher or Super Admin can update this course.');
+
+    const baseData = {
       courseName, courseKey, courseDate, department, departments,
       contentUrl: $('courseContentUrl').value.trim(),
       requiredMinutes: Number($('courseRequiredMinutes').value || 0),
@@ -1292,17 +1550,44 @@ async function saveCourse() {
       enrollmentMode: 'Department',
       brief: $('courseBrief').value.trim(), description: $('courseDescription').value.trim(),
       files: parseFilesText($('courseFiles').value), questions: readQuestionsBuilder(),
+      updatedAt: serverTimestamp(), updatedBy: state.user.email
+    };
+
+    const currentPublisher = {
       publisherUid: state.user.uid,
       publisherEmail: state.user.email,
       publisherName: shortDisplayName(state.profile?.name || state.user.displayName || state.user.email),
       publisherDepartment: state.profile?.primaryDepartment || (state.profile?.departments || [])[0] || department,
-      updatedAt: serverTimestamp(), updatedBy: state.user.email
+      publisherLibraryDepartment: publisherLibraryDepartment(state.profile) || state.profile?.primaryDepartment || (state.profile?.departments || [])[0] || department
     };
-    const ref = doc(db, 'courses', id);
-    const oldCourse = state.courses.find(course => course.id === id);
-    if (oldCourse && !explicitId) throw new Error('A course with the same name already exists. Open it from Managed Courses to edit it.');
-    if (oldCourse) await updateDoc(ref, { ...data, managerUid: oldCourse.managerUid || state.user.uid, managerEmail: oldCourse.managerEmail || state.user.email });
-    else await setDoc(ref, { ...data, memberIds: [], managerUid: state.user.uid, managerEmail: state.user.email, createdAt: serverTimestamp(), createdBy: state.user.email });
+
+    const preservedPublisher = oldCourse ? {
+      publisherUid: oldCourse.publisherUid || oldCourse.postedByUid || oldCourse.managerUid || oldCourse.createdByUid || currentPublisher.publisherUid,
+      publisherEmail: oldCourse.publisherEmail || oldCourse.postedByEmail || oldCourse.managerEmail || oldCourse.createdByEmail || oldCourse.createdBy || currentPublisher.publisherEmail,
+      publisherName: oldCourse.publisherName || oldCourse.postedByName || oldCourse.createdByName || oldCourse.managerName || coursePublisherName(oldCourse) || currentPublisher.publisherName,
+      publisherDepartment: oldCourse.publisherDepartment || oldCourse.postedByDepartment || oldCourse.createdByDepartment || coursePublisherDepartment(oldCourse) || currentPublisher.publisherDepartment,
+      publisherLibraryDepartment: oldCourse.publisherLibraryDepartment || oldCourse.libraryDepartment || oldCourse.courseLibraryDepartment || courseLibraryDepartment(oldCourse) || currentPublisher.publisherLibraryDepartment
+    } : currentPublisher;
+
+    if (oldCourse) {
+      await updateDoc(ref, {
+        ...baseData,
+        ...preservedPublisher,
+        managerUid: oldCourse.managerUid || preservedPublisher.publisherUid || state.user.uid,
+        managerEmail: oldCourse.managerEmail || preservedPublisher.publisherEmail || state.user.email
+      });
+    } else {
+      await setDoc(ref, {
+        ...baseData,
+        ...currentPublisher,
+        memberIds: [],
+        managerUid: state.user.uid,
+        managerEmail: state.user.email,
+        createdAt: serverTimestamp(),
+        createdBy: state.user.email
+      });
+    }
+
     await audit(oldCourse ? 'UPDATE_COURSE' : 'CREATE_COURSE', 'Course', id);
     await loadCourses(); await loadManagerData(); renderAll(); renderCourseManagement(); toast('Course saved successfully.', 'success');
   } catch (e) {
@@ -1792,21 +2077,27 @@ function renderManagedCourses() {
   const body = $('managedCoursesBody');
   if (!body) return;
   const managed = state.courses.filter(canManageCourse);
-  body.innerHTML = managed.length ? managed.map(c => `
+  body.innerHTML = managed.length ? managed.map(c => {
+    const canEdit = canEditCourse(c);
+    return `
     <tr>
       <td>${escapeHtml(c.courseName)}</td>
       <td>${escapeHtml(courseDepartments(c).join(', '))}</td>
       <td>${escapeHtml(c.cycle || 'Monthly')}</td>
       <td><span class="status ${c.status === 'Active' ? 'completed' : 'locked'}">${escapeHtml(c.status || 'Active')}</span></td>
       <td>${(c.memberIds || []).length}</td>
-      <td><button class="btn secondary edit-course" data-id="${escapeHtml(c.id)}">Edit</button> <button class="btn secondary deactivate-course" data-id="${escapeHtml(c.id)}">Deactivate</button></td>
-    </tr>`).join('') : '<tr><td colspan="6">No managed courses yet.</td></tr>';
+      <td>${canEdit
+        ? `<button class="btn secondary edit-course" data-id="${escapeHtml(c.id)}">Edit</button> <button class="btn secondary deactivate-course" data-id="${escapeHtml(c.id)}">Deactivate</button>`
+        : `<span class="status locked">View Only</span>`}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6">No managed courses yet.</td></tr>';
   qsa('.edit-course').forEach(btn => btn.addEventListener('click', () => editCourse(btn.dataset.id)));
   qsa('.deactivate-course').forEach(btn => btn.addEventListener('click', () => deactivateCourse(btn.dataset.id)));
 }
 function editCourse(id) {
   const c = state.courses.find(x => x.id === id);
   if (!c) return;
+  if (!canEditCourse(c)) return toast('Only the original course publisher or Super Admin can edit this course.', 'error');
   $('courseId').value = c.id;
   $('courseName').value = c.courseName || '';
   if ($('courseDate')) $('courseDate').value = courseDateValue(c);
@@ -1826,7 +2117,7 @@ function editCourse(id) {
 }
 async function deactivateCourse(id) {
   const course = state.courses.find(c => c.id === id);
-  if (!course || !canManageCourse(course)) return toast('You cannot manage this course.', 'error');
+  if (!course || !canEditCourse(course)) return toast('Only the original course publisher or Super Admin can deactivate this course.', 'error');
   await updateDoc(doc(db, 'courses', id), { status: 'Inactive', updatedAt: serverTimestamp(), updatedBy: state.user.email });
   await audit('DEACTIVATE_COURSE', 'Course', id);
   await loadCourses(); await loadManagerData(); renderAll();
@@ -1839,6 +2130,9 @@ function renderRoleAdmin() {
   if (!isSuperAdmin()) return;
   $('adminUserSelect').innerHTML = state.users.map(u => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name || u.email || u.id)} - ${escapeHtml(roleLabels[canonicalRole(u.role)] || u.role || 'User')}</option>`).join('');
   $('adminDepartmentsSelect').innerHTML = DEFAULT_DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+  if ($('publisherLibraryDepartmentOptions')) {
+    $('publisherLibraryDepartmentOptions').innerHTML = libraryDepartmentOptions().map(d => `<option value="${escapeHtml(d)}"></option>`).join('');
+  }
   syncRoleEditor();
 }
 function syncRoleEditor() {
@@ -1849,6 +2143,9 @@ function syncRoleEditor() {
   $('adminRoleSelect').value = canonicalRole(user.role);
   const deps = accessDepartments(user);
   qsa('#adminDepartmentsSelect option').forEach(opt => { opt.selected = deps.includes(opt.value); });
+  if ($('adminPublisherLibraryDepartment')) {
+    $('adminPublisherLibraryDepartment').value = publisherLibraryDepartment(user) || user.primaryDepartment || deps[0] || '';
+  }
 }
 async function saveUserRoleAccess() {
   const uid = $('adminUserSelect').value;
@@ -1856,16 +2153,20 @@ async function saveUserRoleAccess() {
   if (!user) return toast('Select a user first.', 'warn');
   const departments = qsa('#adminDepartmentsSelect option').filter(o => o.selected).map(o => o.value);
   const role = $('adminRoleSelect').value;
+  const publisherLibraryDept = String($('adminPublisherLibraryDepartment')?.value || '').trim();
   await updateDoc(doc(db, 'users', uid), {
     role,
     departments,
     managedDepartments: departments,
-    primaryDepartment: user.primaryDepartment || departments[0] || '',
+    primaryDepartment: user.primaryDepartment || departments[0] || publisherLibraryDept || '',
+    publisherLibraryDepartment: publisherLibraryDept || user.publisherLibraryDepartment || user.primaryDepartment || departments[0] || '',
     updatedAt: serverTimestamp()
   });
-  await audit('UPDATE_USER_ACCESS', 'User', uid, { role, departments });
+  await audit('UPDATE_USER_ACCESS', 'User', uid, { role, departments, publisherLibraryDepartment: publisherLibraryDept });
   await loadManagerData();
+  await loadCourses();
   renderRoleAdmin();
+  renderAll();
   toast('User access updated.', 'success');
 }
 function renderMembersList() {
@@ -1938,6 +2239,8 @@ function bindEvents() {
   ['attendanceProfession','attendanceCourse'].forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderAttendance); });
   $('exportCsvBtn').addEventListener('click', exportCsv);
   $('exportDocsBtn').addEventListener('click', exportDocs);
+  $('startAttendanceAuditBtn')?.addEventListener('click', startAttendanceAudit);
+  $('stopAttendanceAuditBtn')?.addEventListener('click', () => stopAttendanceAudit('Live attendance audit stopped.', true));
   $('saveProfileBtn').addEventListener('click', saveProfile);
   $('clearSignatureBtn').addEventListener('click', clearSignature);
   $('saveCourseBtn').addEventListener('click', saveCourse);
