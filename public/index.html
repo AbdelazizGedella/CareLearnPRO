@@ -2142,6 +2142,338 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   }
 }
 
+
+/* --- Home departments course groups section only --- */
+.home-department-library {
+  background:linear-gradient(180deg,#121a2a,#0c1422);
+  border-color:rgba(148,163,184,.20);
+  box-shadow:0 22px 60px rgba(15,23,42,.18);
+}
+.home-department-library .section-title {
+  border-bottom:1px solid rgba(148,163,184,.12);
+  padding-bottom:10px;
+}
+.home-department-library .section-title h3 {
+  color:#dbeafe;
+}
+.home-department-library .section-title p,
+.home-department-library .eyebrow {
+  color:#93a4bd;
+}
+.department-course-grid {
+  display:grid;
+  grid-template-columns:repeat(5, minmax(150px, 1fr));
+  gap:12px;
+}
+.department-course-card {
+  position:relative;
+  min-height:148px;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid rgba(148,163,184,.13);
+  background:
+    radial-gradient(circle at 50% 34%, rgba(34,211,238,.18), transparent 4.8rem),
+    linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.018)),
+    #1f2933;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 12px 24px rgba(0,0,0,.14);
+  transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.department-course-card:hover {
+  transform:translateY(-3px);
+  border-color:rgba(96,165,250,.34);
+  box-shadow:0 18px 38px rgba(37,99,235,.18), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.department-course-symbol {
+  display:grid;
+  place-items:center;
+  min-height:98px;
+  font-size:54px;
+  line-height:1;
+  filter:drop-shadow(0 0 12px rgba(34,211,238,.42));
+}
+.department-course-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-height:50px;
+  border-top:1px solid rgba(148,163,184,.12);
+  background:rgba(0,0,0,.11);
+  padding:9px 10px;
+}
+.department-course-footer h4 {
+  margin:0;
+  color:#e5eefb;
+  font:900 11px/1.25 var(--font-en);
+}
+.department-course-footer span {
+  display:block;
+  margin-top:3px;
+  color:#8fa2bd;
+  font-size:10px;
+  font-weight:800;
+}
+.department-course-footer strong {
+  display:grid;
+  place-items:center;
+  min-width:30px;
+  height:30px;
+  border-radius:999px;
+  background:rgba(37,99,235,.22);
+  border:1px solid rgba(96,165,250,.26);
+  color:#bfdbfe;
+  font:1000 13px/1 var(--font-en);
+}
+.dept-tone-1 .department-course-symbol { color:#38bdf8; }
+.dept-tone-2 .department-course-symbol { color:#22d3ee; }
+.dept-tone-3 .department-course-symbol { color:#60a5fa; }
+.dept-tone-4 .department-course-symbol { color:#34d399; }
+.dept-tone-5 .department-course-symbol { color:#a78bfa; }
+.dept-tone-6 .department-course-symbol { color:#facc15; }
+@media (max-width:1280px) {
+  .department-course-grid {
+    grid-template-columns:repeat(4, minmax(150px, 1fr));
+  }
+}
+@media (max-width:980px) {
+  .department-course-grid {
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width:680px) {
+  .department-course-grid {
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+  .department-course-symbol {
+    min-height:86px;
+    font-size:44px;
+  }
+  .department-course-card {
+    min-height:134px;
+  }
+}
+@media (max-width:430px) {
+  .department-course-grid {
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* --- Requested update: smaller department symbols only --- */
+.department-course-symbol {
+  min-height:58px !important;
+  font-size:26px !important;
+  filter:drop-shadow(0 0 7px rgba(34,211,238,.34)) !important;
+}
+.department-course-card {
+  min-height:112px !important;
+}
+.department-course-footer {
+  min-height:48px !important;
+}
+@media (max-width:680px) {
+  .department-course-symbol {
+    min-height:50px !important;
+    font-size:23px !important;
+  }
+  .department-course-card {
+    min-height:104px !important;
+  }
+}
+
+
+/* --- Requested update: Home departments one-row carousel + Library department grouping --- */
+.home-department-library .department-course-grid {
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  gap:10px !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  padding-bottom:8px;
+  scroll-snap-type:x proximity;
+}
+.home-department-library .department-course-card {
+  flex:0 0 158px !important;
+  min-width:158px !important;
+  min-height:104px !important;
+  scroll-snap-align:start;
+}
+.home-department-library .department-course-symbol {
+  min-height:46px !important;
+  font-size:22px !important;
+  filter:drop-shadow(0 0 6px rgba(34,211,238,.30)) !important;
+}
+.home-department-library .department-course-footer {
+  min-height:52px !important;
+  padding:8px !important;
+}
+.home-department-library .department-course-footer h4 {
+  font-size:9.5px !important;
+  line-height:1.22 !important;
+}
+.home-department-library .department-course-footer span {
+  font-size:9px !important;
+}
+.home-department-library .department-course-footer strong {
+  min-width:25px !important;
+  height:25px !important;
+  font-size:11px !important;
+}
+.library-department-groups {
+  display:grid;
+  gap:14px;
+}
+.library-department-block h3 b {
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  background:rgba(37,99,235,.08);
+  border:1px solid rgba(37,99,235,.16);
+  color:var(--accent);
+  padding:5px 10px;
+  font:900 11px/1 var(--font-en);
+}
+.library-department-block .course-cards-grid {
+  margin-top:12px;
+}
+@media (max-width:680px) {
+  .home-department-library .department-course-card {
+    flex-basis:145px !important;
+    min-width:145px !important;
+  }
+}
+
+
+/* --- Library classification and non-empty department groups only --- */
+#adminPublisherLibraryDepartment {
+  font-family:var(--font-en);
+}
+.home-department-library .department-course-grid:has(.empty) {
+  display:block !important;
+}
+.home-department-library .empty {
+  color:#93a4bd;
+  border:1px dashed rgba(148,163,184,.24);
+  border-radius:16px;
+  min-height:72px;
+  display:grid;
+  place-items:center;
+}
+.library-department-block h3 span::before {
+  content:"";
+  display:inline-block;
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  background:var(--accent);
+  box-shadow:0 0 14px rgba(37,99,235,.45);
+  margin-right:8px;
+}
+
+
+/* --- Responsive course groups and live Course Attendance Audit --- */
+.home-department-library .department-course-grid {
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit, minmax(145px, 1fr)) !important;
+  gap:10px !important;
+  overflow:visible !important;
+  padding-bottom:0 !important;
+  scroll-snap-type:none !important;
+}
+.home-department-library .department-course-card.library-group-home-card {
+  min-width:0 !important;
+  flex:initial !important;
+  min-height:118px !important;
+  display:grid;
+  grid-template-rows:56px 1fr;
+}
+.home-department-library .library-group-symbol {
+  min-height:56px !important;
+  font-size:25px !important;
+}
+.home-department-library .library-group-footer {
+  display:grid !important;
+  place-items:center;
+  text-align:center;
+  min-height:58px !important;
+  padding:9px !important;
+}
+.home-department-library .library-group-footer h4 {
+  margin:0;
+  color:#e5eefb;
+  font:900 10.5px/1.25 var(--font-en);
+}
+.home-department-library .library-group-footer span {
+  margin-top:4px;
+  color:#93a4bd;
+  font:800 9.5px/1 var(--font-en);
+}
+.course-attendance-audit {
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:#fff;
+  padding:16px;
+}
+.audit-actions {
+  margin:2px 0 14px;
+}
+.audit-kpi-grid {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(120px, 1fr));
+  gap:10px;
+  margin-bottom:12px;
+}
+.audit-kpi {
+  border:1px solid rgba(37,99,235,.14);
+  border-radius:16px;
+  background:linear-gradient(180deg,#f8fbff,#ffffff);
+  padding:12px;
+  box-shadow:0 10px 22px rgba(15,23,42,.045);
+}
+.audit-kpi span {
+  display:block;
+  color:var(--muted);
+  font:900 10px/1.2 var(--font-en);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.audit-kpi strong {
+  display:block;
+  margin-top:8px;
+  color:var(--primary);
+  font:1000 24px/1 var(--font-en);
+}
+.audit-live-hint {
+  border:1px dashed rgba(37,99,235,.22);
+  border-radius:16px;
+  background:#f8fbff;
+  color:var(--muted);
+  padding:10px 12px;
+  margin-bottom:12px;
+  font-weight:800;
+}
+.audit-live-hint.running {
+  border-color:rgba(22,160,107,.28);
+  background:#ecfdf5;
+  color:#047857;
+}
+.audit-table-wrap table {
+  min-width:760px;
+}
+@media (max-width:900px) {
+  .audit-kpi-grid {
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width:520px) {
+  .home-department-library .department-course-grid {
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+  }
+  .audit-kpi-grid {
+    grid-template-columns:1fr;
+  }
+}
+
 </style>
 </head>
 <body data-theme="light">
@@ -2235,8 +2567,6 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
           <button class="course-tile tile-late-red" data-go="courses" type="button"><h3>LATE</h3><p>Late Courses<br>متأخر</p><strong id="statDue">0</strong></button>
           <button class="course-tile tile-admin" data-go="courses" type="button"><h3>COMMITMENT</h3><p>Overall Commitment<br>الالتزام</p><strong id="statCoverage">0%</strong></button>
         </div>
-
-        
         <div class="welcome-panel planner-only-panel">
           <div class="home-hidden-identity hidden" aria-hidden="true">
             <span id="clientEmailMirror">user@company.com</span>
@@ -2261,6 +2591,18 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             </div>
           </article>
         </div>
+        <article class="card home-department-library" aria-label="Department course groups">
+          <div class="section-title compact">
+            <div>
+              <span class="eyebrow">Departments</span>
+              <h3>Courses by Department</h3>
+              <p>Grouped view of active courses according to the available departments.</p>
+            </div>
+          </div>
+          <div id="homeDepartmentCoursesGrid" class="department-course-grid">
+            <div class="empty">Department groups will appear after loading courses.</div>
+          </div>
+        </article>
 
         <div class="dashboard-tables">
           <article class="card">
@@ -2334,6 +2676,42 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
               <div id="analyticsMonthlyTrainingBody"></div>
             </div>
           </details>
+
+
+          <details class="analytics-spoiler">
+            <summary>Course Attendance Audit</summary>
+            <div id="courseAttendanceAuditBox" class="course-attendance-audit">
+              <div class="section-title compact">
+                <div>
+                  <span class="eyebrow">Live Attendance</span>
+                  <h3>Course Attendance Audit</h3>
+                  <p>Monitor one course every 10 seconds. The monitor stops automatically after 1 minute with no new attendance.</p>
+                </div>
+              </div>
+              <div class="filter-grid analytics-filter-grid">
+                <label>Course<select id="auditCourseSelect"><option value="">Select course</option></select></label>
+                <label>Status<input id="auditStatusText" value="Stopped" readonly></label>
+              </div>
+              <div class="actions-inline audit-actions">
+                <button id="startAttendanceAuditBtn" class="btn" type="button">Start Live Audit</button>
+                <button id="stopAttendanceAuditBtn" class="btn secondary" type="button">Stop</button>
+              </div>
+              <div id="auditKpiGrid" class="audit-kpi-grid">
+                <div class="audit-kpi"><span>Total Attendance</span><strong id="auditTotalCount">0</strong></div>
+                <div class="audit-kpi"><span>New Since Start</span><strong id="auditNewCount">0</strong></div>
+                <div class="audit-kpi"><span>Last Update</span><strong id="auditLastUpdate">--:--</strong></div>
+                <div class="audit-kpi"><span>Checks</span><strong id="auditChecksCount">0</strong></div>
+              </div>
+              <div id="auditLiveHint" class="audit-live-hint">Choose a course and start live audit.</div>
+              <div class="table-wrap audit-table-wrap">
+                <table>
+                  <thead><tr><th>Name</th><th>Job ID</th><th>Department</th><th>Completed At</th><th>Score</th><th>Duration</th></tr></thead>
+                  <tbody id="auditAttendanceBody"><tr><td colspan="6">No live attendance loaded yet.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
         </div>
       </section>
 
@@ -2481,6 +2859,7 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
           <div class="form-grid">
             <label>User<select id="adminUserSelect"></select></label>
             <label>Role<select id="adminRoleSelect"><option value="User">User</option><option value="CourseManager">Course Manager / Publisher</option><option value="Manager">Manager</option><option value="DepartmentHead">Department Head</option><option value="TrainingAdmin">Training Admin</option><option value="Admin">Admin</option><option value="SuperAdmin">Super Admin</option></select></label>
+            <label class="full">Course Library Classification Department<input id="adminPublisherLibraryDepartment" list="publisherLibraryDepartmentOptions" placeholder="Type or select the main section for this publisher"><datalist id="publisherLibraryDepartmentOptions"></datalist><small class="field-hint">Used only for grouping this publisher's courses in Courses Library Breakdown. Custom names are allowed.</small></label>
             <label class="full">Limited Departments<select id="adminDepartmentsSelect" multiple size="8"></select></label>
           </div>
         </div>
@@ -2524,6 +2903,6 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   </div>
 
   <script src="firebase-config.js"></script>
-  <script type="module" src="app.js?v=calendar-recurring-hours-minutes-20260624-16"></script>
+  <script type="module" src="app.js?v=responsive-groups-live-attendance-audit-20260625-21"></script>
 </body>
 </html>
