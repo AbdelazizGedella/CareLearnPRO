@@ -7,3 +7,6 @@ window.CARELEARN_FIREBASE_CONFIG = {
   appId: "YOUR_FIREBASE_WEB_APP_ID",
   measurementId: "YOUR_MEASUREMENT_ID"
 };
+
+
+window.CARELEARN_CERTIFICATE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyStOtsebTgIq1BeBZ0pqBLDuR57Yb3XmjL5ZMEJ9A8SREquDUDOUyIhVC9vRC_V7-P/exec";
