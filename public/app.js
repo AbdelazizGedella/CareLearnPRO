@@ -144,6 +144,102 @@ function passDisplay(course) {
   return `${Number(course?.passScore || 0)}%`;
 }
 
+
+function courseCertificateTemplateUrl(course) {
+  return String(course?.certificateTemplateUrl || course?.certificateSlidesUrl || course?.certificateTemplate || '').trim();
+}
+function courseHasCertificate(course) {
+  return !!courseCertificateTemplateUrl(course);
+}
+function certificateGeneratorUrl(course={}) {
+  return String(
+    window.CARELEARN_CERTIFICATE_WEBAPP_URL ||
+    course?.certificateGeneratorUrl ||
+    localStorage.getItem('carelearn.certificateScriptUrl') ||
+    $('certificateScriptUrl')?.value ||
+    ''
+  ).trim();
+}
+function b64Json(payload) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function certificateRecordForCourse(course) {
+  return course?.completedRecord || state.attendance.find(row =>
+    row.courseId === course?.id &&
+    (
+      row.userId === state.user?.uid ||
+      row.email === state.user?.email ||
+      row.userEmail === state.user?.email
+    )
+  ) || null;
+}
+function certificatePayload(course, record=null) {
+  const rec = record || certificateRecordForCourse(course) || {};
+  const completedAt = toDate(rec.completedAt) || new Date();
+  const duration = Number(rec.durationMinutes || rec.duration || 0);
+  const certificateId = rec.certificateId || `${state.user?.uid || 'user'}_${course?.id || 'course'}_${rec.cycle || course?.cycleKey || currentCycle(course || {})}`;
+  return {
+    name: rec.name || state.profile?.name || state.user?.displayName || state.user?.email || '',
+    course: course?.courseName || rec.courseName || '',
+    date: dateOnly(completedAt),
+    jobId: rec.jobId || state.profile?.jobId || '',
+    department: rec.department || state.profile?.primaryDepartment || (state.profile?.departments || [])[0] || course?.department || '',
+    profession: rec.profession || state.profile?.profession || '',
+    score: String(rec.score ?? ''),
+    duration: `${duration} min`,
+    publisher: coursePublisherName(course || {}),
+    cycle: rec.cycle || course?.cycle || '',
+    certificateId
+  };
+}
+function certificateDownloadUrl(course, record=null) {
+  const scriptUrl = certificateGeneratorUrl(course);
+  if (!scriptUrl || !courseHasCertificate(course)) return '';
+  const params = new URLSearchParams();
+  params.set('templateUrl', courseCertificateTemplateUrl(course));
+  params.set('payload', b64Json(certificatePayload(course, record)));
+  return `${scriptUrl}${scriptUrl.includes('?') ? '&' : '?'}${params.toString()}`;
+}
+function downloadCertificate(courseId) {
+  const course = state.courses.find(c => c.id === courseId) || state.currentCourse;
+  if (!course) return toast('Course not found.', 'error');
+  if (!course.completed) return toast('Certificate is available only after course completion.', 'warn');
+  if (!courseHasCertificate(course)) return toast('No certificate template linked to this course.', 'warn');
+  const url = certificateDownloadUrl(course, certificateRecordForCourse(course));
+  if (!url) return toast('Add Certificate Generator Apps Script Web App URL in Admin > Export Settings or firebase-config.js.', 'warn');
+  window.open(url, '_blank', 'noopener');
+}
+function courseCertificateActionHtml(course) {
+  if (!course?.completed || !courseHasCertificate(course)) return '';
+  return `<div class="course-certificate-actions"><button type="button" class="btn success download-certificate" data-id="${escapeHtml(course.id)}">Download Certificate</button></div>`;
+}
+function renderCertificateBox(course) {
+  const box = $('certificateBox');
+  if (!box) return;
+  const show = !!course?.completed && courseHasCertificate(course);
+  box.classList.toggle('hidden', !show);
+  if (!show) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = `
+    <strong>Certificate Available</strong>
+    <p>Your personalized certificate can be generated from the linked Google Slides template.</p>
+    <button type="button" class="btn success download-certificate" data-id="${escapeHtml(course.id)}">Download Certificate</button>`;
+  bindCertificateButtons();
+}
+function bindCertificateButtons() {
+  qsa('.download-certificate').forEach(btn => {
+    if (btn.dataset.certificateBound === '1') return;
+    btn.dataset.certificateBound = '1';
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      downloadCertificate(btn.dataset.id);
+    });
+  });
+}
+
 function shortDisplayName(value='') {
   let raw = String(value || '').trim();
   if (!raw) return '';
@@ -1289,6 +1385,7 @@ function buildCoursesBreakdownHtml(courses, compact) {
             </tr>
           </tbody>
         </table>
+        ${courseCertificateActionHtml(c)}
       </article>`;
 
   if (!compact) {
@@ -1322,7 +1419,7 @@ function buildCoursesBreakdownHtml(courses, compact) {
         <td>${escapeHtml(c.cycle || 'One Time')}</td>
         <td>${escapeHtml(passDisplay(c))}</td>
         <td><span class="status ${courseStatusClass(c)}">${escapeHtml(courseStatusLabel(c))}</span></td>
-        <td>${isCourseMember(c) ? `<button class="btn secondary open-course" data-id="${escapeHtml(c.id)}">${c.completed?'Review':'Open Course'}</button>` : `<button class="btn secondary request-course" data-id="${escapeHtml(c.id)}">Request Access</button>`}</td>
+        <td>${isCourseMember(c) ? `<button class="btn secondary open-course" data-id="${escapeHtml(c.id)}">${c.completed?'Review':'Open Course'}</button>${c.completed && courseHasCertificate(c) ? ` <button class="btn success download-certificate" data-id="${escapeHtml(c.id)}">Certificate</button>` : ''}` : `<button class="btn secondary request-course" data-id="${escapeHtml(c.id)}">Request Access</button>`}</td>
       </tr>`).join('');
   return `<div class="table-wrap compact-course-table"><table><thead><tr><th>Course</th><th>Department</th><th>Course Date</th><th>Time</th><th>Repetition of this Course</th><th>PASS</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -1550,6 +1647,8 @@ async function saveCourse() {
       enrollmentMode: 'Department',
       brief: $('courseBrief').value.trim(), description: $('courseDescription').value.trim(),
       files: parseFilesText($('courseFiles').value), questions: readQuestionsBuilder(),
+      certificateTemplateUrl: $('courseCertificateTemplateUrl')?.value.trim() || '',
+      certificateGeneratorUrl: window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || $('certificateScriptUrl')?.value.trim() || oldCourse?.certificateGeneratorUrl || '',
       updatedAt: serverTimestamp(), updatedBy: state.user.email
     };
 
@@ -1653,6 +1752,7 @@ async function openCourse(id) {
 
   $('completedNotice').classList.toggle('hidden', !course.completed);
   $('completedNotice').textContent = course.completed ? 'You have already completed this course. You can review the content, selected answers, and correct answers without changing attendance, score, signature, or duration.' : '';
+  renderCertificateBox(course);
   $('submitCourseBtn').classList.toggle('hidden', !!course.completed);
   $('timerPanel').classList.toggle('hidden', !!course.completed);
   const primaryUrl = getPrimaryContentUrl(course);
@@ -1852,6 +1952,8 @@ async function submitCourse() {
     department: state.profile.primaryDepartment || (state.profile.departments || [])[0] || course.department,
     courseId: course.id, courseName: course.courseName, cycle,
     score, durationMinutes: Math.round(state.activeSeconds / 60 * 100) / 100,
+    certificateId: `${state.user.uid}_${course.id}_${cycle}`,
+    certificateTemplateUrl: courseCertificateTemplateUrl(course),
     signatureDataUrl: state.profile.signatureDataUrl,
     quizReview: questions.length ? buildQuizReviewPayload(answers) : { displayedCount: 0, items: [] },
     completedAt: Timestamp.fromDate(completedAt), createdAt: serverTimestamp()
@@ -1900,8 +2002,10 @@ async function exportDocs() {
 }
 function saveLocalSettings() {
   const url = $('appsScriptUrl').value.trim();
+  const certUrl = $('certificateScriptUrl')?.value.trim() || '';
   localStorage.setItem('carelearn.appsScriptUrl', url);
-  toast('Export URL saved locally in this browser.', 'success');
+  localStorage.setItem('carelearn.certificateScriptUrl', certUrl);
+  toast('Local settings saved in this browser.', 'success');
 }
 function applyTheme(theme) {
   document.body.dataset.theme = 'light';
@@ -2023,6 +2127,7 @@ async function requestCourseAccess(courseId) {
   toast('Access request sent to the Course Manager.', 'success');
 }
 function bindOpenButtons() {
+  bindCertificateButtons();
   qsa('.open-course').forEach(btn => {
     if (btn.dataset.bound === '1') return;
     btn.dataset.bound = '1';
@@ -2087,7 +2192,7 @@ function renderManagedCourses() {
       <td><span class="status ${c.status === 'Active' ? 'completed' : 'locked'}">${escapeHtml(c.status || 'Active')}</span></td>
       <td>${(c.memberIds || []).length}</td>
       <td>${canEdit
-        ? `<button class="btn secondary edit-course" data-id="${escapeHtml(c.id)}">Edit</button> <button class="btn secondary deactivate-course" data-id="${escapeHtml(c.id)}">Deactivate</button>`
+        ? `<button class="btn secondary edit-course" data-id="${escapeHtml(c.id)}">Edit</button> <button class="btn secondary deactivate-course" data-id="${escapeHtml(c.id)}">Deactivate</button>${courseHasCertificate(c) ? ` <a class="btn secondary certificate-design-link" href="${escapeHtml(courseCertificateTemplateUrl(c))}" target="_blank" rel="noopener">Certificate Design</a>` : ''}`
         : `<span class="status locked">View Only</span>`}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="6">No managed courses yet.</td></tr>';
@@ -2111,6 +2216,7 @@ function editCourse(id) {
   $('courseBrief').value = c.brief || '';
   $('courseDescription').value = c.description || '';
   $('courseFiles').value = (c.files || []).map(f => `${f.name || 'Course File'} | ${f.url}`).join('\n');
+  if ($('courseCertificateTemplateUrl')) $('courseCertificateTemplateUrl').value = courseCertificateTemplateUrl(c);
   $('questionsBuilder').innerHTML = '';
   (c.questions || []).forEach(addQuestionEditor);
   toast('Course loaded for editing.', 'success');
@@ -2264,5 +2370,6 @@ function bindEvents() {
 applyTheme('light');
 bindEvents();
 $('appsScriptUrl').value = localStorage.getItem('carelearn.appsScriptUrl') || '';
+if ($('certificateScriptUrl')) $('certificateScriptUrl').value = window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || '';
 getRedirectResult(auth).catch(e => console.warn(e));
 onAuthStateChanged(auth, handleAuthUser);
