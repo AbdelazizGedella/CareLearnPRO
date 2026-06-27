@@ -27,6 +27,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const FIREBASE_CONFIG = window.CARELEARN_FIREBASE_CONFIG;
+const DEFAULT_CERTIFICATE_GENERATOR_URL = 'https://script.google.com/macros/s/AKfycbyStOtsebTgIq1BeBZ0pqBLDuR57Yb3XmjL5ZMEJ9A8SREquDUDOUyIhVC9vRC_V7-P/exec';
 if (!FIREBASE_CONFIG?.apiKey) {
   throw new Error('Missing Firebase config. Copy public/firebase-config.example.js to public/firebase-config.js and fill your Firebase web config.');
 }
@@ -157,6 +158,7 @@ function certificateGeneratorUrl(course={}) {
     course?.certificateGeneratorUrl ||
     localStorage.getItem('carelearn.certificateScriptUrl') ||
     $('certificateScriptUrl')?.value ||
+    DEFAULT_CERTIFICATE_GENERATOR_URL ||
     ''
   ).trim();
 }
@@ -189,7 +191,10 @@ function certificatePayload(course, record=null) {
     duration: `${duration} min`,
     publisher: coursePublisherName(course || {}),
     cycle: rec.cycle || course?.cycle || '',
-    certificateId
+    certificateId,
+    publisherSignature: coursePublisherSignatureDataUrl(course || {}),
+    managerSignature: coursePublisherSignatureDataUrl(course || {}),
+    signatureAvailable: !!coursePublisherSignatureDataUrl(course || {})
   };
 }
 function certificateDownloadUrl(course, record=null) {
@@ -200,14 +205,40 @@ function certificateDownloadUrl(course, record=null) {
   params.set('payload', b64Json(certificatePayload(course, record)));
   return `${scriptUrl}${scriptUrl.includes('?') ? '&' : '?'}${params.toString()}`;
 }
+function submitCertificateRequest(course, record=null) {
+  const scriptUrl = certificateGeneratorUrl(course);
+  if (!scriptUrl || !courseHasCertificate(course)) return false;
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.action = scriptUrl;
+  form.target = '_blank';
+  form.className = 'hidden';
+
+  const templateInput = document.createElement('input');
+  templateInput.type = 'hidden';
+  templateInput.name = 'templateUrl';
+  templateInput.value = courseCertificateTemplateUrl(course);
+  form.appendChild(templateInput);
+
+  const payloadInput = document.createElement('input');
+  payloadInput.type = 'hidden';
+  payloadInput.name = 'payload';
+  payloadInput.value = b64Json(certificatePayload(course, record));
+  form.appendChild(payloadInput);
+
+  document.body.appendChild(form);
+  form.submit();
+  setTimeout(() => form.remove(), 1500);
+  return true;
+}
+
 function downloadCertificate(courseId) {
   const course = state.courses.find(c => c.id === courseId) || state.currentCourse;
   if (!course) return toast('Course not found.', 'error');
   if (!course.completed) return toast('Certificate is available only after course completion.', 'warn');
   if (!courseHasCertificate(course)) return toast('No certificate template linked to this course.', 'warn');
-  const url = certificateDownloadUrl(course, certificateRecordForCourse(course));
-  if (!url) return toast('Add Certificate Generator Apps Script Web App URL in Admin > Export Settings or firebase-config.js.', 'warn');
-  window.open(url, '_blank', 'noopener');
+  const ok = submitCertificateRequest(course, certificateRecordForCourse(course));
+  if (!ok) return toast('Certificate Generator URL is not available.', 'warn');
 }
 function courseCertificateActionHtml(course) {
   if (!course?.completed || !courseHasCertificate(course)) return '';
@@ -222,9 +253,10 @@ function renderCertificateBox(course) {
     box.innerHTML = '';
     return;
   }
+  const hasSignature = !!coursePublisherSignatureDataUrl(course);
   box.innerHTML = `
     <strong>Certificate Available</strong>
-    <p>Your personalized certificate can be generated from the linked Google Slides template.</p>
+    <p>Your personalized certificate can be generated from the linked Google Slides template.${hasSignature ? ' Course Manager signature is linked.' : ' Course Manager signature is not synced yet.'}</p>
     <button type="button" class="btn success download-certificate" data-id="${escapeHtml(course.id)}">Download Certificate</button>`;
   bindCertificateButtons();
 }
@@ -300,6 +332,18 @@ function libraryDepartmentOptions() {
   ]).sort((a, b) => a.localeCompare(b));
 }
 
+function coursePublisherSignatureDataUrl(course) {
+  const user = coursePublisherUser(course);
+  return String(
+    course?.publisherSignatureDataUrl ||
+    course?.publisherSignature ||
+    course?.managerSignatureDataUrl ||
+    course?.signatureDataUrl ||
+    user?.signatureDataUrl ||
+    ''
+  ).trim();
+}
+
 function coursePublisherDepartment(course) {
   const user = coursePublisherUser(course);
   return course?.publisherDepartment ||
@@ -310,6 +354,27 @@ function coursePublisherDepartment(course) {
     course?.department ||
     (courseDepartments(course) || [])[0] ||
     'Not specified';
+}
+
+
+async function syncPublisherSignatureToOwnedCourses() {
+  const signature = String(state.profile?.signatureDataUrl || '').trim();
+  if (!state.user || !signature) return;
+  const targets = state.courses.filter(course =>
+    isCourseOriginalPublisher(course) &&
+    !String(course.publisherSignatureDataUrl || course.publisherSignature || course.managerSignatureDataUrl || '').trim()
+  );
+  for (const course of targets) {
+    try {
+      await updateDoc(doc(db, 'courses', course.id), {
+        publisherSignatureDataUrl: signature,
+        publisherSignatureSyncedAt: serverTimestamp()
+      });
+      course.publisherSignatureDataUrl = signature;
+    } catch (e) {
+      await logClient('syncPublisherSignatureToOwnedCourses', e.message || String(e), { courseId: course.id });
+    }
+  }
 }
 
 async function hydrateCoursePublisherUsers(courses=[]) {
@@ -599,6 +664,7 @@ async function loadCourses() {
       return { ...course, cycleKey: cycle, completed: !!completedRec, completedRecord: completedRec || null, isDue: course.status === 'Active' && isCourseMember(course) && !completedRec && !opened && daysAvailable > 7, dueDays: daysAvailable };
     });
   await hydrateCoursePublisherUsers(state.courses);
+  await syncPublisherSignatureToOwnedCourses();
 }
 async function loadAttendance() {
   const rows = [];
@@ -1648,7 +1714,7 @@ async function saveCourse() {
       brief: $('courseBrief').value.trim(), description: $('courseDescription').value.trim(),
       files: parseFilesText($('courseFiles').value), questions: readQuestionsBuilder(),
       certificateTemplateUrl: $('courseCertificateTemplateUrl')?.value.trim() || '',
-      certificateGeneratorUrl: window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || $('certificateScriptUrl')?.value.trim() || oldCourse?.certificateGeneratorUrl || '',
+      certificateGeneratorUrl: window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || $('certificateScriptUrl')?.value.trim() || oldCourse?.certificateGeneratorUrl || DEFAULT_CERTIFICATE_GENERATOR_URL || '',
       updatedAt: serverTimestamp(), updatedBy: state.user.email
     };
 
@@ -1657,7 +1723,8 @@ async function saveCourse() {
       publisherEmail: state.user.email,
       publisherName: shortDisplayName(state.profile?.name || state.user.displayName || state.user.email),
       publisherDepartment: state.profile?.primaryDepartment || (state.profile?.departments || [])[0] || department,
-      publisherLibraryDepartment: publisherLibraryDepartment(state.profile) || state.profile?.primaryDepartment || (state.profile?.departments || [])[0] || department
+      publisherLibraryDepartment: publisherLibraryDepartment(state.profile) || state.profile?.primaryDepartment || (state.profile?.departments || [])[0] || department,
+      publisherSignatureDataUrl: state.profile?.signatureDataUrl || ''
     };
 
     const preservedPublisher = oldCourse ? {
@@ -1665,7 +1732,8 @@ async function saveCourse() {
       publisherEmail: oldCourse.publisherEmail || oldCourse.postedByEmail || oldCourse.managerEmail || oldCourse.createdByEmail || oldCourse.createdBy || currentPublisher.publisherEmail,
       publisherName: oldCourse.publisherName || oldCourse.postedByName || oldCourse.createdByName || oldCourse.managerName || coursePublisherName(oldCourse) || currentPublisher.publisherName,
       publisherDepartment: oldCourse.publisherDepartment || oldCourse.postedByDepartment || oldCourse.createdByDepartment || coursePublisherDepartment(oldCourse) || currentPublisher.publisherDepartment,
-      publisherLibraryDepartment: oldCourse.publisherLibraryDepartment || oldCourse.libraryDepartment || oldCourse.courseLibraryDepartment || courseLibraryDepartment(oldCourse) || currentPublisher.publisherLibraryDepartment
+      publisherLibraryDepartment: oldCourse.publisherLibraryDepartment || oldCourse.libraryDepartment || oldCourse.courseLibraryDepartment || courseLibraryDepartment(oldCourse) || currentPublisher.publisherLibraryDepartment,
+      publisherSignatureDataUrl: oldCourse.publisherSignatureDataUrl || oldCourse.publisherSignature || (isCourseOriginalPublisher(oldCourse) ? currentPublisher.publisherSignatureDataUrl : '') || coursePublisherSignatureDataUrl(oldCourse) || currentPublisher.publisherSignatureDataUrl
     } : currentPublisher;
 
     if (oldCourse) {
@@ -2370,6 +2438,6 @@ function bindEvents() {
 applyTheme('light');
 bindEvents();
 $('appsScriptUrl').value = localStorage.getItem('carelearn.appsScriptUrl') || '';
-if ($('certificateScriptUrl')) $('certificateScriptUrl').value = window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || '';
+if ($('certificateScriptUrl')) $('certificateScriptUrl').value = window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || DEFAULT_CERTIFICATE_GENERATOR_URL || '';
 getRedirectResult(auth).catch(e => console.warn(e));
 onAuthStateChanged(auth, handleAuthUser);
