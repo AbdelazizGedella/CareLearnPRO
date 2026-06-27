@@ -2550,6 +2550,47 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   .modal-backdrop.course-page-mode #certificateBox { grid-column:auto; }
 }
 
+
+/* --- Final responsive tuning for Courses by Department container --- */
+.home-department-library .department-course-grid {
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, 185px), 1fr)) !important;
+  gap:clamp(12px, 1.4vw, 20px) !important;
+  align-items:stretch;
+}
+.home-department-library .department-course-card.library-group-home-card {
+  min-height:clamp(145px, 18vw, 210px) !important;
+  border-radius:clamp(14px, 1.4vw, 22px) !important;
+  grid-template-rows:minmax(78px, 1.25fr) minmax(58px, .75fr) !important;
+}
+.home-department-library .library-group-symbol {
+  min-height:auto !important;
+  font-size:clamp(36px, 5.2vw, 76px) !important;
+  filter:drop-shadow(0 0 12px rgba(34,211,238,.42)) !important;
+}
+.home-department-library .library-group-footer {
+  min-height:auto !important;
+  padding:clamp(10px, 1.1vw, 16px) !important;
+}
+.home-department-library .library-group-footer h4 {
+  font-size:clamp(11px, 1vw, 15px) !important;
+  line-height:1.25 !important;
+}
+.home-department-library .library-group-footer span {
+  font-size:clamp(10px, .9vw, 13px) !important;
+}
+@media (max-width:520px) {
+  .home-department-library .department-course-grid {
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+  }
+  .home-department-library .department-course-card.library-group-home-card {
+    min-height:138px !important;
+  }
+  .home-department-library .library-group-symbol {
+    font-size:40px !important;
+  }
+}
+
 </style>
 </head>
 <body data-theme="light">
@@ -2893,9 +2934,9 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
               <div class="certificate-token-grid">
                 <code>&lt;&lt;name&gt;&gt;</code><code>&lt;&lt;course&gt;&gt;</code><code>&lt;&lt;date&gt;&gt;</code><code>&lt;&lt;jobId&gt;&gt;</code>
                 <code>&lt;&lt;department&gt;&gt;</code><code>&lt;&lt;profession&gt;&gt;</code><code>&lt;&lt;score&gt;&gt;</code><code>&lt;&lt;duration&gt;&gt;</code>
-                <code>&lt;&lt;publisher&gt;&gt;</code><code>&lt;&lt;cycle&gt;&gt;</code><code>&lt;&lt;certificateId&gt;&gt;</code>
+                <code>&lt;&lt;publisher&gt;&gt;</code><code>&lt;&lt;cycle&gt;&gt;</code><code>&lt;&lt;certificateId&gt;&gt;</code><code>&lt;&lt;publisherSignature&gt;&gt;</code><code>&lt;&lt;managerSignature&gt;&gt;</code>
               </div>
-              <small>The Course Manager can edit the Google Slides design anytime. The same link will be used for new certificate downloads.</small>
+              <small>The Course Manager can edit the Google Slides design anytime. Put <<publisherSignature>> or <<managerSignature>> inside a small text box where the signature image should appear. The signature is taken from the Course Manager Profile signature and auto-synced to owned courses.</small>
             </div>
           </div>
           <div class="question-builder">
@@ -2957,7 +2998,7 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             <button id="saveLocalSettingsBtn" class="btn secondary">Save locally</button>
           </div>
           <label>Apps Script Export Web App URL<input id="appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
-          <label>Certificate Generator Apps Script Web App URL<input id="certificateScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"><small class="field-hint">Used for converting the linked Google Slides certificate template into a personalized PDF.</small></label>
+          <label>Certificate Generator Apps Script Web App URL<input id="certificateScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" value="https://script.google.com/macros/s/AKfycbyStOtsebTgIq1BeBZ0pqBLDuR57Yb3XmjL5ZMEJ9A8SREquDUDOUyIhVC9vRC_V7-P/exec"><small class="field-hint">Used for converting the linked Google Slides certificate template into a personalized PDF.</small></label>
         </div>
       </section>
     </main>
@@ -2993,6 +3034,6 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   </div>
 
   <script src="firebase-config.js"></script>
-  <script type="module" src="app.js?v=certificate-template-download-20260626-22"></script>
+  <script type="module" src="app.js?v=certificate-signature-fix-preview-20260626-24"></script>
 </body>
 </html>
