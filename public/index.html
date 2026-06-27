@@ -2474,6 +2474,82 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   }
 }
 
+
+/* --- Certificate template and download feature only --- */
+.certificate-placeholder-hint {
+  border:1px dashed rgba(37,99,235,.25);
+  border-radius:18px;
+  background:linear-gradient(180deg,#f8fbff,#ffffff);
+  padding:14px;
+}
+.certificate-placeholder-hint strong {
+  display:block;
+  color:var(--primary);
+  font-family:var(--font-en);
+  font-weight:1000;
+}
+.certificate-placeholder-hint p,
+.certificate-placeholder-hint small {
+  color:var(--muted);
+  margin:5px 0 0;
+}
+.certificate-token-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
+  gap:8px;
+  margin:12px 0 8px;
+}
+.certificate-token-grid code {
+  display:block;
+  border:1px solid rgba(37,99,235,.15);
+  border-radius:12px;
+  background:#eef4ff;
+  color:#1d4ed8;
+  padding:8px 10px;
+  font:900 12px/1 var(--font-mono);
+  text-align:center;
+}
+.certificate-download-box {
+  border:1px solid rgba(22,160,107,.24);
+  border-radius:18px;
+  background:linear-gradient(180deg,#ecfdf5,#ffffff);
+  color:#047857;
+  padding:13px 15px;
+}
+.certificate-download-box strong {
+  display:block;
+  font-family:var(--font-en);
+  font-weight:1000;
+  color:#065f46;
+}
+.certificate-download-box p {
+  margin:5px 0 10px;
+  color:#047857;
+}
+.course-certificate-actions {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin-top:12px;
+  position:relative;
+  z-index:5;
+}
+.course-certificate-actions .btn,
+.certificate-download-box .btn {
+  min-height:36px;
+  padding:8px 12px;
+}
+.certificate-design-link {
+  margin-left:6px;
+}
+.modal-backdrop.course-page-mode #certificateBox {
+  grid-column:2;
+}
+@media (max-width:1180px) {
+  .modal-backdrop.course-page-mode #certificateBox { grid-column:auto; }
+}
+
 </style>
 </head>
 <body data-theme="light">
@@ -2809,6 +2885,18 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             <label class="full">Upload Course Files<input id="courseUploadFiles" type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.mp4,.mov,.png,.jpg,.jpeg,.txt"></label>
             <div class="actions-right full"><button id="uploadCourseFilesBtn" class="btn secondary" type="button">Upload to Super Admin Drive</button></div>
             <label class="full">Additional Drive Links<textarea id="courseFiles" placeholder="One link per line. Example: Policy PDF | https://drive.google.com/..."></textarea></label>
+
+            <label class="full certificate-template-field">Certificate Google Slides Template URL<input id="courseCertificateTemplateUrl" placeholder="https://docs.google.com/presentation/d/.../edit"></label>
+            <div class="certificate-placeholder-hint full">
+              <strong>Certificate Variables Hint</strong>
+              <p>Write these variables inside Google Slides exactly as shown, then design the certificate normally:</p>
+              <div class="certificate-token-grid">
+                <code>&lt;&lt;name&gt;&gt;</code><code>&lt;&lt;course&gt;&gt;</code><code>&lt;&lt;date&gt;&gt;</code><code>&lt;&lt;jobId&gt;&gt;</code>
+                <code>&lt;&lt;department&gt;&gt;</code><code>&lt;&lt;profession&gt;&gt;</code><code>&lt;&lt;score&gt;&gt;</code><code>&lt;&lt;duration&gt;&gt;</code>
+                <code>&lt;&lt;publisher&gt;&gt;</code><code>&lt;&lt;cycle&gt;&gt;</code><code>&lt;&lt;certificateId&gt;&gt;</code>
+              </div>
+              <small>The Course Manager can edit the Google Slides design anytime. The same link will be used for new certificate downloads.</small>
+            </div>
           </div>
           <div class="question-builder">
             <div class="section-title compact">
@@ -2869,6 +2957,7 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             <button id="saveLocalSettingsBtn" class="btn secondary">Save locally</button>
           </div>
           <label>Apps Script Export Web App URL<input id="appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+          <label>Certificate Generator Apps Script Web App URL<input id="certificateScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"><small class="field-hint">Used for converting the linked Google Slides certificate template into a personalized PDF.</small></label>
         </div>
       </section>
     </main>
@@ -2882,6 +2971,7 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
       </div>
       <div class="modal-body">
         <div id="completedNotice" class="alert success hidden"></div>
+        <div id="certificateBox" class="certificate-download-box hidden"></div>
         <div id="courseHero" class="course-hero"></div>
         <p id="modalCourseDescription" class="muted"></p>
         <div class="actions-inline">
@@ -2903,6 +2993,6 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   </div>
 
   <script src="firebase-config.js"></script>
-  <script type="module" src="app.js?v=responsive-groups-live-attendance-audit-20260625-21"></script>
+  <script type="module" src="app.js?v=certificate-template-download-20260626-22"></script>
 </body>
 </html>
