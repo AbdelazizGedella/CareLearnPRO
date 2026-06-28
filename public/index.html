@@ -3085,6 +3085,96 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   }
 }
 
+
+/* --- Courses Library Breakdown responsive polish only --- */
+#coursesBreakdown .library-department-groups {
+  display:grid;
+  gap:clamp(14px, 1.6vw, 22px);
+}
+#coursesBreakdown .library-department-block {
+  border-radius:24px;
+  padding:clamp(14px, 1.6vw, 22px);
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  border:1px solid rgba(205,217,234,.92);
+  box-shadow:0 14px 34px rgba(15,23,42,.055);
+}
+#coursesBreakdown .library-department-block h3 {
+  align-items:center;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+#coursesBreakdown .library-department-block h3 span {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:#0f172a;
+  font:1000 clamp(15px, 1.4vw, 20px)/1.2 var(--font-en);
+}
+#coursesBreakdown .library-department-block h3 b {
+  margin-left:auto;
+  white-space:nowrap;
+}
+#coursesBreakdown .course-cards-grid {
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, 270px), 1fr)) !important;
+  gap:clamp(12px, 1.3vw, 18px) !important;
+  align-items:stretch;
+}
+#coursesBreakdown .course-box-card-v2 {
+  min-width:0 !important;
+  width:100%;
+  min-height:260px;
+  display:flex;
+  flex-direction:column;
+  border-radius:22px;
+  overflow:hidden;
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  border:1px solid rgba(205,217,234,.92);
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+}
+#coursesBreakdown .course-box-card-v2 .course-title-zone {
+  flex:1;
+  display:grid;
+  align-content:start;
+  gap:8px;
+}
+#coursesBreakdown .course-box-card-v2 h4 {
+  font-size:clamp(16px, 1.35vw, 21px);
+  line-height:1.18;
+  margin-bottom:4px;
+}
+#coursesBreakdown .course-prepared-line {
+  font-size:12px;
+  line-height:1.45;
+}
+#coursesBreakdown .course-card-info-table {
+  width:100%;
+  min-width:0 !important;
+  table-layout:fixed;
+  margin-top:auto;
+  border-radius:16px;
+  overflow:hidden;
+}
+#coursesBreakdown .course-card-info-table th,
+#coursesBreakdown .course-card-info-table td {
+  padding:8px 7px;
+  font-size:10.5px;
+  text-align:center;
+  white-space:normal;
+}
+#coursesBreakdown .course-certificate-actions {
+  justify-content:flex-start;
+  padding-top:8px;
+}
+@media (max-width:640px) {
+  #coursesBreakdown .course-cards-grid {
+    grid-template-columns:1fr !important;
+  }
+  #coursesBreakdown .course-box-card-v2 {
+    min-height:230px;
+  }
+}
+
 </style>
 </head>
 <body data-theme="light">
@@ -3171,6 +3261,19 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
       <section id="page-dashboard" class="page client-dashboard">
         <div id="profileAlert" class="alert warn hidden">Please complete your profile and electronic signature before submitting any course.</div>
 
+        <article class="card feature-course-library" aria-label="Featured course slider">
+          <div class="section-title compact">
+            <div>
+              <span class="eyebrow">Featured</span>
+              <h3>Featured Courses</h3>
+              <p>Visual slider for courses that have an optional feature image.</p>
+            </div>
+          </div>
+          <div id="featureSliderBox" class="feature-slider-box">
+            <div class="empty">Featured course slider will appear after loading courses.</div>
+          </div>
+        </article>
+
         <div class="course-tiles metric-tiles" aria-label="Learning dashboard progress">
           <button class="course-tile tile-safety" data-go="courses" type="button"><h3>ASSIGNED</h3><p>Assigned Courses<br>المكلف</p><strong id="statAssigned">0</strong></button>
           <button class="course-tile tile-completed-green" data-go="courses" type="button"><h3>COMPLETED</h3><p>Completed<br>مكتمل</p><strong id="statCompleted">0</strong></button>
@@ -3202,34 +3305,7 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             </div>
           </article>
         </div>
-
-        <article class="card feature-course-library" aria-label="Featured course slider">
-          <div class="section-title compact">
-            <div>
-              <span class="eyebrow">Featured</span>
-              <h3>Featured Courses</h3>
-              <p>Visual slider for courses that have an optional feature image.</p>
-            </div>
-          </div>
-          <div id="featureSliderBox" class="feature-slider-box">
-            <div class="empty">Featured course slider will appear after loading courses.</div>
-          </div>
-        </article>
-
-        <article class="card home-department-library" aria-label="Department course groups">
-          <div class="section-title compact">
-            <div>
-              <span class="eyebrow">Departments</span>
-              <h3>Courses by Department</h3>
-              <p>Grouped view of active courses according to the available departments.</p>
-            </div>
-          </div>
-          <div id="homeDepartmentCoursesGrid" class="department-course-grid">
-            <div class="empty">Department groups will appear after loading courses.</div>
-          </div>
-        </article>
-
-        <div class="dashboard-tables">
+<div class="dashboard-tables">
           <article class="card">
             <div class="section-title">
               <div><span class="eyebrow">Active Courses</span><h3>List of Active Courses</h3><p>Course Name | Department | Status | Posted time | Time | Repetition of this Course | PASS | Action.</p></div>
@@ -3432,7 +3508,8 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             <label class="full">Brief<input id="courseBrief"></label>
             <label class="full">Description<textarea id="courseDescription"></textarea></label>
 
-            <label class="full feature-image-field">Feature Slider Image URL<input id="courseFeatureImageUrl" placeholder="Paste Google Drive image URL or direct image URL"><small class="field-hint">Optional. Recommended size: 720 × 1080 px vertical poster. If empty, this course will not appear in the Home featured slider.</small></label>
+            <label class="full feature-image-field">Feature Slider Image URL<input id="courseFeatureImageUrl" placeholder="Paste Google Drive image URL or direct image URL"><small class="field-hint">Optional. Recommended size: 720 × 1080 px vertical poster. If empty and no file is uploaded, this course will not appear in the Home featured slider.</small></label>
+            <label class="full feature-image-file-field">Feature Slider Image File<input id="courseFeatureImageFile" type="file" accept="image/*"><small class="field-hint">Optional fallback. The image will be compressed and stored inside Firebase/Firestore as text, so it can display even if Google Drive is blocked. Keep it as small as possible.</small></label>
 
             <label class="full">Upload Course Files<input id="courseUploadFiles" type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.mp4,.mov,.png,.jpg,.jpeg,.txt"></label>
             <div class="actions-right full"><button id="uploadCourseFilesBtn" class="btn secondary" type="button">Upload to Super Admin Drive</button></div>
@@ -3545,6 +3622,6 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   </div>
 
   <script src="firebase-config.js"></script>
-  <script type="module" src="app.js?v=calendar-own-completion-certificate-image-fix-20260627-28"></script>
+  <script type="module" src="app.js?v=publisher-preserve-firestore-image-slider-layout-20260627-29"></script>
 </body>
 </html>
