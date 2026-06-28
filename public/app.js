@@ -934,6 +934,19 @@ function demoFeatureSlides() {
     { id:'demo-feature-3', demo:true, courseName:'Emergency Response Skills', requiredMinutes:30, createdAt:new Date(), image:svgSliderImage('Emergency Response Skills', '#0f172a', '#2563eb'), completedCount:12 }
   ];
 }
+
+function courseLibraryVisualUrl(course) {
+  return courseFeatureImageUrl(course) || svgSliderImage(course?.courseName || 'CareLearn Course', '#0f172a', '#2563eb');
+}
+function sortedCoursesForLibrary(courses=[]) {
+  return courses.slice().sort((a, b) => {
+    if (!!a.completed !== !!b.completed) return a.completed ? 1 : -1;
+    const ad = toDate(a.createdAt || a.courseDate || a.postedDate || a.availableFrom)?.getTime() || 0;
+    const bd = toDate(b.createdAt || b.courseDate || b.postedDate || b.availableFrom)?.getTime() || 0;
+    return bd - ad;
+  });
+}
+
 function featureSliderSlides(courses=state.courses) {
   const real = courses
     .filter(course => course.status === 'Active' && courseFeatureImageUrl(course))
@@ -951,10 +964,7 @@ function buildFeatureSliderHtml(courses=state.courses) {
           ${slides.map((course, index) => `
             <article class="feature-slide ${index === 0 ? 'is-active' : ''}" data-id="${escapeHtml(course.id)}" data-demo="${course.demo ? '1' : '0'}" style="--offset:${index};">
               <img src="${escapeHtml(course.image)}" alt="${escapeHtml(course.courseName)}" loading="lazy">
-              <div class="feature-slide-top">
-                <span>${courseCompletedCount(course)} completed</span>
-              </div>
-              <div class="feature-slide-play" aria-hidden="true">▶</div>
+              <div class="feature-slide-top"><span>${courseCompletedCount(course)}</span></div>
               <div class="feature-slide-overlay">
                 <h3>${escapeHtml(course.courseName)}</h3>
                 <div class="feature-slide-meta">
@@ -1632,37 +1642,27 @@ function buildCoursesBreakdownHtml(courses, compact) {
   if (!courses.length) return '<div class="empty">No courses available yet.</div>';
 
   const courseCardHtml = (c, index) => `
-      <article class="course-box-card course-box-card-v2 course-card-clickable color-${(index % 5) + 1}" data-id="${escapeHtml(c.id)}" data-action="${isCourseMember(c) ? 'open' : 'request'}" tabindex="0" role="button" aria-label="${escapeHtml(c.courseName)}">
-        <div class="course-title-zone">
-          <h4>${escapeHtml(c.courseName)}</h4>
-<div class="course-prepared-line">
-  Prepared by: <strong>${escapeHtml(coursePublisherName(c))}</strong>
-  <br>
-  ${escapeHtml(coursePublisherDepartment(c))}
-</div>          <div class="department-card-tooltip">${departmentTooltip(courseDepartments(c))}</div>
+      <article class="library-slide-course-card course-card-clickable ${c.completed ? 'is-completed' : 'is-pending'}" data-id="${escapeHtml(c.id)}" data-action="${isCourseMember(c) ? 'open' : 'request'}" tabindex="0" role="button" aria-label="${escapeHtml(c.courseName)}">
+        <img src="${escapeHtml(courseLibraryVisualUrl(c))}" alt="${escapeHtml(c.courseName)}" loading="lazy">
+        <div class="library-slide-top">
+          <span>${courseCompletedCount(c)}</span>
+          ${c.completed ? '<b>Completed</b>' : ''}
         </div>
-
-        <table class="course-card-info-table" aria-label="Course details">
-          <thead>
-            <tr>
-              <th>Course Date</th>
-              <th>Status</th>
-              <th>Time</th>
-              <th>Repetition</th>
-              <th>PASS</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${escapeHtml(courseDateLabel(c))}</td>
-              <td><span class="course-card-status ${courseStatusClass(c)}">${escapeHtml(courseStatusLabel(c))}</span></td>
-              <td>${Number(c.requiredMinutes || 0)} min</td>
-              <td>${escapeHtml(c.cycle || 'One Time')}</td>
-              <td>${escapeHtml(passDisplay(c))}</td>
-            </tr>
-          </tbody>
-        </table>
-        ${courseCertificateActionHtml(c)}
+        ${c.completed ? '<div class="library-completed-stamp">Completed</div>' : ''}
+        <div class="library-slide-overlay">
+          <h4>${escapeHtml(c.courseName)}</h4>
+          <div class="library-slide-meta">
+            <span>${escapeHtml(courseDateLabel(c))}</span>
+            <span>${Number(c.requiredMinutes || 0)} min</span>
+            <span>${escapeHtml(c.cycle || 'One Time')}</span>
+          </div>
+          <div class="library-slide-prepared">Prepared by <strong>${escapeHtml(coursePublisherName(c))}</strong></div>
+          <div class="library-slide-actions">
+            ${isCourseMember(c)
+              ? `<button class="btn secondary open-course" data-id="${escapeHtml(c.id)}">${c.completed?'Review':'Open Course'}</button>${c.completed && courseHasCertificate(c) ? ` <button class="btn success download-certificate" data-id="${escapeHtml(c.id)}">Certificate</button>` : ''}`
+              : `<button class="btn secondary request-course" data-id="${escapeHtml(c.id)}">Request Access</button>`}
+          </div>
+        </div>
       </article>`;
 
   if (!compact) {
@@ -1680,14 +1680,17 @@ function buildCoursesBreakdownHtml(courses, compact) {
 
     if (!orderedDepartments.length) return '<div class="empty">No courses available for your library sections.</div>';
 
-    return `<div class="library-department-groups">${orderedDepartments.map(dep => `
-      <section class="department-block library-department-block">
-        <h3><span>${escapeHtml(dep)}</span><b>${groups[dep].length} ${groups[dep].length === 1 ? 'Course' : 'Courses'}</b></h3>
-        <div class="course-cards-grid">${groups[dep].map(courseCardHtml).join('')}</div>
-      </section>`).join('')}</div>`;
+    return `<div class="library-department-groups library-slider-breakdown">${orderedDepartments.map(dep => {
+      const sorted = sortedCoursesForLibrary(groups[dep]);
+      return `
+      <section class="department-block library-department-block library-slider-section">
+        <h3><span>${escapeHtml(dep)}</span><b>${sorted.length} ${sorted.length === 1 ? 'Course' : 'Courses'}</b></h3>
+        <div class="library-slider-course-grid">${sorted.map(courseCardHtml).join('')}</div>
+      </section>`;
+    }).join('')}</div>`;
   }
 
-  const rows = courses.map(c => `
+  const rows = sortedCoursesForLibrary(courses).map(c => `
       <tr>
         <td>${escapeHtml(c.courseName)}</td>
         <td>${departmentTooltip(courseDepartments(c))}</td>
