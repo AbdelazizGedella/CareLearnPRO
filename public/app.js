@@ -28,6 +28,7 @@ import {
 
 const FIREBASE_CONFIG = window.CARELEARN_FIREBASE_CONFIG;
 const DEFAULT_CERTIFICATE_GENERATOR_URL = 'https://script.google.com/macros/s/AKfycbyStOtsebTgIq1BeBZ0pqBLDuR57Yb3XmjL5ZMEJ9A8SREquDUDOUyIhVC9vRC_V7-P/exec';
+const DEFAULT_APPS_SCRIPT_EXPORT_URL = 'https://script.google.com/macros/s/AKfycbxIiax1SPtg5cORDb-SHRqm9LT-R9bmH_f7WgeopKsKBCFqZRif30Fb3tevFJ1cs9C7/exec';
 if (!FIREBASE_CONFIG?.apiKey) {
   throw new Error('Missing Firebase config. Copy public/firebase-config.example.js to public/firebase-config.js and fill your Firebase web config.');
 }
@@ -66,6 +67,8 @@ const state = {
   drawing: false,
   questionsDraft: [],
   plannerMonthOffset: 0,
+  featureSliderTimer: null,
+  featureSliderIndex: 0,
   attendanceAudit: {
     timer: null,
     running: false,
@@ -146,6 +149,17 @@ function passDisplay(course) {
 }
 
 
+
+function appsScriptExportUrl() {
+  return String(
+    window.CARELEARN_APPS_SCRIPT_EXPORT_URL ||
+    localStorage.getItem('carelearn.appsScriptUrl') ||
+    $('appsScriptUrl')?.value ||
+    DEFAULT_APPS_SCRIPT_EXPORT_URL ||
+    ''
+  ).trim();
+}
+
 function courseCertificateTemplateUrl(course) {
   return String(course?.certificateTemplateUrl || course?.certificateSlidesUrl || course?.certificateTemplate || '').trim();
 }
@@ -165,15 +179,33 @@ function certificateGeneratorUrl(course={}) {
 function b64Json(payload) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
-function certificateRecordForCourse(course) {
-  return course?.completedRecord || state.attendance.find(row =>
-    row.courseId === course?.id &&
+
+function isOwnAttendanceRecord(record) {
+  if (!record || !state.user) return false;
+  const email = String(state.user.email || '').toLowerCase();
+  return (
+    record.userId === state.user.uid ||
+    String(record.email || '').toLowerCase() === email ||
+    String(record.userEmail || '').toLowerCase() === email
+  );
+}
+function courseCompletionRecordForUser(course) {
+  if (!course || !state.user) return null;
+  const cycle = course.cycleKey || currentCycle(course);
+  const attendanceId = `${state.user.uid}_${course.id}_${cycle}`;
+  return state.attendance.find(record =>
+    record.courseId === course.id &&
+    isOwnAttendanceRecord(record) &&
     (
-      row.userId === state.user?.uid ||
-      row.email === state.user?.email ||
-      row.userEmail === state.user?.email
+      record.id === attendanceId ||
+      String(record.cycle || '') === cycle ||
+      (cycle === 'ONE-TIME' && (!record.cycle || record.cycle === 'ONE-TIME'))
     )
   ) || null;
+}
+
+function certificateRecordForCourse(course) {
+  return course?.completedRecord || courseCompletionRecordForUser(course);
 }
 function certificatePayload(course, record=null) {
   const rec = record || certificateRecordForCourse(course) || {};
@@ -194,7 +226,8 @@ function certificatePayload(course, record=null) {
     certificateId,
     publisherSignature: coursePublisherSignatureDataUrl(course || {}),
     managerSignature: coursePublisherSignatureDataUrl(course || {}),
-    signatureAvailable: !!coursePublisherSignatureDataUrl(course || {})
+    signatureAvailable: !!coursePublisherSignatureDataUrl(course || {}),
+    outputMode: 'image-and-pdf'
   };
 }
 function certificateDownloadUrl(course, record=null) {
@@ -253,10 +286,9 @@ function renderCertificateBox(course) {
     box.innerHTML = '';
     return;
   }
-  const hasSignature = !!coursePublisherSignatureDataUrl(course);
   box.innerHTML = `
     <strong>Certificate Available</strong>
-    <p>Your personalized certificate can be generated from the linked Google Slides template.${hasSignature ? ' Course Manager signature is linked.' : ' Course Manager signature is not synced yet.'}</p>
+    <p>Your certificate is generated from your own completion record only. The course remains available for other assigned members.</p>
     <button type="button" class="btn success download-certificate" data-id="${escapeHtml(course.id)}">Download Certificate</button>`;
   bindCertificateButtons();
 }
@@ -655,7 +687,7 @@ async function loadCourses() {
     .map(course => {
       const cycle = currentCycle(course);
       const attendanceId = `${state.user.uid}_${course.id}_${cycle}`;
-      const completedRec = state.attendance.find(a => a.id === attendanceId || (a.courseId === course.id && (course.cycle === 'One Time' || a.cycle === cycle)));
+      const completedRec = courseCompletionRecordForUser({ ...course, cycleKey: cycle });
       const availableFrom = toDate(course.createdAt) || new Date();
       const firstLogin = toDate(state.profile.firstLoginAt) || new Date();
       const effectiveStart = availableFrom > firstLogin ? availableFrom : firstLogin;
@@ -812,6 +844,141 @@ function buildDepartmentCoursesGrid(courses=state.courses) {
   }).join('');
 }
 
+
+function extractDriveFileId(url='') {
+  const raw = String(url || '');
+  return (raw.match(/\/d\/([a-zA-Z0-9_-]+)/) || raw.match(/[?&]id=([a-zA-Z0-9_-]+)/) || [])[1] || '';
+}
+function normalizedImageUrl(url='') {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  const driveId = extractDriveFileId(raw);
+  if (driveId) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId)}&sz=w1600`;
+  return raw;
+}
+function courseFeatureImageUrl(course) {
+  return normalizedImageUrl(
+    course?.featureImageUrl ||
+    course?.sliderImageUrl ||
+    course?.courseImageUrl ||
+    course?.coverImageUrl ||
+    course?.thumbnailUrl ||
+    ''
+  );
+}
+function courseFeaturePublishedLabel(course) {
+  const date = toDate(course?.createdAt || course?.courseDate || course?.postedDate || course?.availableFrom) || new Date();
+  return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+}
+function courseCompletedCount(course) {
+  const records = state.attendance.filter(row => row.courseId === course?.id);
+  if (records.length) return unique(records.map(row => row.userId || row.email || row.userEmail || row.id)).length;
+  return course?.completedCount || course?.attendanceCount || (course?.completed ? 1 : 0);
+}
+function svgSliderImage(title, c1='#1d4ed8', c2='#18b8c8') {
+  const safe = String(title || 'CareLearn Pro').replace(/[<>&]/g, '');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 760"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient><radialGradient id="r" cx=".78" cy=".25" r=".65"><stop stop-color="#ffffff" stop-opacity=".22"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient></defs><rect width="1400" height="760" fill="url(#g)"/><rect width="1400" height="760" fill="url(#r)"/><circle cx="1120" cy="180" r="180" fill="#fff" opacity=".12"/><circle cx="190" cy="620" r="220" fill="#0f172a" opacity=".18"/><path d="M70 615 C260 500 390 555 560 420 S900 210 1320 300" fill="none" stroke="#fff" stroke-width="7" opacity=".18"/><text x="88" y="156" fill="#fff" font-family="Arial, sans-serif" font-size="56" font-weight="800">${safe}</text><text x="90" y="218" fill="#dbeafe" font-family="Arial, sans-serif" font-size="28" font-weight="700">CareLearn Pro Featured Course</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+function demoFeatureSlides() {
+  return [
+    { id:'demo-feature-1', demo:true, courseName:'Infection Control Essentials', requiredMinutes:20, createdAt:new Date(), image:svgSliderImage('Infection Control Essentials', '#1e3a8a', '#18b8c8'), completedCount:18 },
+    { id:'demo-feature-2', demo:true, courseName:'Patient Safety Training', requiredMinutes:15, createdAt:new Date(), image:svgSliderImage('Patient Safety Training', '#172554', '#4f46e5'), completedCount:24 },
+    { id:'demo-feature-3', demo:true, courseName:'Emergency Response Skills', requiredMinutes:30, createdAt:new Date(), image:svgSliderImage('Emergency Response Skills', '#0f172a', '#2563eb'), completedCount:12 }
+  ];
+}
+function featureSliderSlides(courses=state.courses) {
+  const real = courses
+    .filter(course => course.status === 'Active' && courseFeatureImageUrl(course))
+    .map(course => ({ ...course, image: courseFeatureImageUrl(course), demo:false }));
+  return real.length ? real : demoFeatureSlides();
+}
+function buildFeatureSliderHtml(courses=state.courses) {
+  const slides = featureSliderSlides(courses);
+  if (!slides.length) return '';
+  return `
+    <div class="feature-slider-shell cinematic-course-slider" data-count="${slides.length}">
+      <button type="button" class="feature-slider-nav prev" data-feature-step="-1" aria-label="Previous featured course">‹</button>
+      <div class="feature-slider-viewport">
+        <div class="feature-slider-stage">
+          ${slides.map((course, index) => `
+            <article class="feature-slide ${index === 0 ? 'is-active' : ''}" data-id="${escapeHtml(course.id)}" data-demo="${course.demo ? '1' : '0'}" style="--offset:${index};">
+              <img src="${escapeHtml(course.image)}" alt="${escapeHtml(course.courseName)}" loading="lazy">
+              <div class="feature-slide-top">
+                <span>${courseCompletedCount(course)} completed</span>
+              </div>
+              <div class="feature-slide-play" aria-hidden="true">▶</div>
+              <div class="feature-slide-overlay">
+                <h3>${escapeHtml(course.courseName)}</h3>
+                <div class="feature-slide-meta">
+                  <span>${escapeHtml(courseFeaturePublishedLabel(course))}</span>
+                  <span>${Number(course.requiredMinutes || 0)} min</span>
+                </div>
+              </div>
+            </article>`).join('')}
+        </div>
+      </div>
+      <button type="button" class="feature-slider-nav next" data-feature-step="1" aria-label="Next featured course">›</button>
+      <div class="feature-slider-dots">${slides.map((_, index) => `<button type="button" class="${index === 0 ? 'active' : ''}" data-feature-index="${index}" aria-label="Go to slide ${index + 1}"></button>`).join('')}</div>
+    </div>`;
+}
+function setFeatureSliderIndex(index) {
+  const shell = document.querySelector('.feature-slider-shell');
+  if (!shell) return;
+  const slides = qsa('.feature-slide');
+  const count = slides.length;
+  if (!count) return;
+  const next = ((index % count) + count) % count;
+  state.featureSliderIndex = next;
+  slides.forEach((slide, i) => {
+    let offset = i - next;
+    if (offset > count / 2) offset -= count;
+    if (offset < -count / 2) offset += count;
+    const abs = Math.abs(offset);
+    slide.style.setProperty('--offset', offset);
+    slide.classList.toggle('is-active', offset === 0);
+    slide.classList.toggle('is-near', abs === 1);
+    slide.classList.toggle('is-far', abs === 2);
+    slide.classList.toggle('is-hidden-slide', abs > 2);
+    slide.setAttribute('aria-hidden', abs > 2 ? 'true' : 'false');
+  });
+  qsa('.feature-slider-dots button').forEach((dot, i) => dot.classList.toggle('active', i === next));
+}
+function startFeatureSliderAuto() {
+  if (state.featureSliderTimer) clearInterval(state.featureSliderTimer);
+  const shell = document.querySelector('.feature-slider-shell');
+  if (!shell || Number(shell.dataset.count || 0) < 2) return;
+  state.featureSliderTimer = setInterval(() => setFeatureSliderIndex(Number(state.featureSliderIndex || 0) + 1), 4500);
+}
+function bindFeatureSlider() {
+  const shell = document.querySelector('.feature-slider-shell');
+  if (!shell) return;
+  if (shell.dataset.bound !== '1') {
+    shell.dataset.bound = '1';
+    qsa('[data-feature-step]').forEach(btn => btn.addEventListener('click', () => {
+      setFeatureSliderIndex(Number(state.featureSliderIndex || 0) + Number(btn.dataset.featureStep || 0));
+      startFeatureSliderAuto();
+    }));
+    qsa('[data-feature-index]').forEach(btn => btn.addEventListener('click', () => {
+      setFeatureSliderIndex(Number(btn.dataset.featureIndex || 0));
+      startFeatureSliderAuto();
+    }));
+    qsa('.feature-slide').forEach(slide => slide.addEventListener('click', () => {
+      if (slide.dataset.demo === '1') return;
+      const course = state.courses.find(c => c.id === slide.dataset.id);
+      if (!course) return;
+      if (isCourseMember(course)) return openCourse(course.id);
+      return requestCourseAccess(course.id);
+    }));
+    shell.addEventListener('mouseenter', () => { if (state.featureSliderTimer) clearInterval(state.featureSliderTimer); });
+    shell.addEventListener('mouseleave', startFeatureSliderAuto);
+  }
+  const count = Number(shell.dataset.count || 0);
+  if (Number(state.featureSliderIndex || 0) >= count) state.featureSliderIndex = 0;
+  setFeatureSliderIndex(Number(state.featureSliderIndex || 0));
+  startFeatureSliderAuto();
+}
+
 function renderAll() { renderDashboard(); renderCourses(); renderAnalytics(); renderAttendance(); fillProfileForm(); renderCourseManagement(); renderRoleAdmin(); }
 function renderDashboard() {
   const trackedCourses = state.courses.filter(c => c.status === 'Active' && isCourseMember(c));
@@ -831,6 +998,7 @@ function renderDashboard() {
   if ($('departmentPostedCourses')) $('departmentPostedCourses').textContent = trackedCourses.length;
   if ($('attendanceAccomplished')) $('attendanceAccomplished').textContent = completed;
   if ($('dashboardPlanner')) $('dashboardPlanner').innerHTML = buildPlannerHtml(trackedCourses);
+  if ($('featureSliderBox')) $('featureSliderBox').innerHTML = buildFeatureSliderHtml(state.courses);
   if ($('homeDepartmentCoursesGrid')) $('homeDepartmentCoursesGrid').innerHTML = buildDepartmentCoursesGrid(state.courses);
 
   $('dashboardCourses').innerHTML = buildCoursesBreakdownHtml(state.courses.slice(0, 10), true);
@@ -838,6 +1006,7 @@ function renderDashboard() {
   $('dueCoursesBox').innerHTML = dueCourses.length ? dueCourses.map(c => `<div class="alert warn"><strong>${escapeHtml(c.courseName)}</strong><br>${escapeHtml(courseDepartments(c).join(', '))} · ${courseDateLabel(c)} · ${c.dueDays} days</div>`).join('') : '<div class="empty">No due courses.</div>';
   renderManagerDashboard();
   bindPlannerMonthNav();
+  bindFeatureSlider();
   bindOpenButtons();
 }
 
@@ -946,15 +1115,10 @@ function plannerOccurrenceCycle(course, date) {
 function plannerCompletedRecord(course, occurrenceCycle) {
   return state.attendance.find(row =>
     row.courseId === course.id &&
+    isOwnAttendanceRecord(row) &&
     (
       String(row.cycle || '') === occurrenceCycle ||
       (occurrenceCycle === 'ONE-TIME' && (!row.cycle || row.cycle === 'ONE-TIME'))
-    ) &&
-    (
-      row.userId === state.user?.uid ||
-      row.email === state.user?.email ||
-      row.userEmail === state.user?.email ||
-      isManager()
     )
   ) || null;
 }
@@ -989,10 +1153,11 @@ function plannerOccurrenceDateForMonth(course, year, month) {
 function plannerCourseForOccurrence(course, date) {
   const cycle = plannerOccurrenceCycle(course, date);
   const completedRecord = plannerCompletedRecord(course, cycle);
+  const isCompletedForCurrentUser = !!completedRecord;
   return {
     ...course,
     cycleKey: cycle,
-    completed: !!completedRecord,
+    completed: isCompletedForCurrentUser,
     completedRecord: completedRecord || null,
     isDue: !completedRecord && !!course.isDue
   };
@@ -1712,6 +1877,8 @@ async function saveCourse() {
       cycle: $('courseCycle').value, status: $('courseStatus').value,
       enrollmentMode: 'Department',
       brief: $('courseBrief').value.trim(), description: $('courseDescription').value.trim(),
+      featureImageUrl: $('courseFeatureImageUrl')?.value.trim() || '',
+      sliderImageUrl: $('courseFeatureImageUrl')?.value.trim() || '',
       files: parseFilesText($('courseFiles').value), questions: readQuestionsBuilder(),
       certificateTemplateUrl: $('courseCertificateTemplateUrl')?.value.trim() || '',
       certificateGeneratorUrl: window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || $('certificateScriptUrl')?.value.trim() || oldCourse?.certificateGeneratorUrl || DEFAULT_CERTIFICATE_GENERATOR_URL || '',
@@ -2050,7 +2217,7 @@ function filteredAttendance() {
   );
 }
 async function exportDocs() {
-  const url = localStorage.getItem('carelearn.appsScriptUrl') || $('appsScriptUrl').value.trim();
+  const url = appsScriptExportUrl();
   if (!url) return toast('Add Apps Script Export Web App URL in Admin > Export Settings.', 'warn');
   const rows = filteredAttendance();
   if (!rows.length) return toast('No attendance records to export.', 'warn');
@@ -2069,8 +2236,8 @@ async function exportDocs() {
   $('docsExportForm').submit();
 }
 function saveLocalSettings() {
-  const url = $('appsScriptUrl').value.trim();
-  const certUrl = $('certificateScriptUrl')?.value.trim() || '';
+  const url = $('appsScriptUrl')?.value.trim() || DEFAULT_APPS_SCRIPT_EXPORT_URL || '';
+  const certUrl = $('certificateScriptUrl')?.value.trim() || DEFAULT_CERTIFICATE_GENERATOR_URL || '';
   localStorage.setItem('carelearn.appsScriptUrl', url);
   localStorage.setItem('carelearn.certificateScriptUrl', certUrl);
   toast('Local settings saved in this browser.', 'success');
@@ -2096,7 +2263,7 @@ function fileToPayload(file) {
   });
 }
 async function uploadCourseFiles() {
-  const url = localStorage.getItem('carelearn.appsScriptUrl') || $('appsScriptUrl').value.trim();
+  const url = appsScriptExportUrl();
   if (!url) return toast('Add Apps Script Web App URL in Admin > Export Settings first.', 'warn');
   const files = Array.from($('courseUploadFiles').files || []);
   if (!files.length) return toast('Choose one or more course files first.', 'warn');
@@ -2169,6 +2336,8 @@ function handleUploadMessage(event) {
   if (data.error) return toast(data.error, 'error');
   const lines = (data.files || []).map(f => `${f.name} | ${f.url}`);
   $('courseFiles').value = [$('courseFiles').value.trim(), ...lines].filter(Boolean).join('\n');
+  const firstImage = (data.files || []).find(f => /\.(png|jpe?g|webp|gif)$/i.test(f.name || '') || String(f.mimeType || '').startsWith('image/'));
+  if (firstImage && $('courseFeatureImageUrl') && !$('courseFeatureImageUrl').value.trim()) $('courseFeatureImageUrl').value = firstImage.url || '';
   $('courseUploadFiles').value = '';
   toast(`${lines.length} file(s) uploaded and attached.`, 'success');
 }
@@ -2284,6 +2453,7 @@ function editCourse(id) {
   $('courseBrief').value = c.brief || '';
   $('courseDescription').value = c.description || '';
   $('courseFiles').value = (c.files || []).map(f => `${f.name || 'Course File'} | ${f.url}`).join('\n');
+  if ($('courseFeatureImageUrl')) $('courseFeatureImageUrl').value = courseFeatureImageUrl(c) || c.featureImageUrl || c.sliderImageUrl || '';
   if ($('courseCertificateTemplateUrl')) $('courseCertificateTemplateUrl').value = courseCertificateTemplateUrl(c);
   $('questionsBuilder').innerHTML = '';
   (c.questions || []).forEach(addQuestionEditor);
@@ -2437,7 +2607,7 @@ function bindEvents() {
 
 applyTheme('light');
 bindEvents();
-$('appsScriptUrl').value = localStorage.getItem('carelearn.appsScriptUrl') || '';
+$('appsScriptUrl').value = window.CARELEARN_APPS_SCRIPT_EXPORT_URL || localStorage.getItem('carelearn.appsScriptUrl') || DEFAULT_APPS_SCRIPT_EXPORT_URL || '';
 if ($('certificateScriptUrl')) $('certificateScriptUrl').value = window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || DEFAULT_CERTIFICATE_GENERATOR_URL || '';
 getRedirectResult(auth).catch(e => console.warn(e));
 onAuthStateChanged(auth, handleAuthUser);
