@@ -1650,6 +1650,7 @@ function buildCoursesBreakdownHtml(courses, compact) {
         </div>
         ${c.completed ? '<div class="library-completed-stamp">Completed</div>' : ''}
         <div class="library-slide-overlay">
+          ${c.completed && courseHasCertificate(c) ? `<button type="button" class="library-certificate-emoji download-certificate" data-id="${escapeHtml(c.id)}" title="Download Certificate" aria-label="Download Certificate">🎓</button>` : ''}
           <h4>${escapeHtml(c.courseName)}</h4>
           <div class="library-slide-meta">
             <span>${escapeHtml(courseDateLabel(c))}</span>
@@ -1657,11 +1658,6 @@ function buildCoursesBreakdownHtml(courses, compact) {
             <span>${escapeHtml(c.cycle || 'One Time')}</span>
           </div>
           <div class="library-slide-prepared">Prepared by <strong>${escapeHtml(coursePublisherName(c))}</strong></div>
-          <div class="library-slide-actions">
-            ${isCourseMember(c)
-              ? `<button class="btn secondary open-course" data-id="${escapeHtml(c.id)}">${c.completed?'Review':'Open Course'}</button>${c.completed && courseHasCertificate(c) ? ` <button class="btn success download-certificate" data-id="${escapeHtml(c.id)}">Certificate</button>` : ''}`
-              : `<button class="btn secondary request-course" data-id="${escapeHtml(c.id)}">Request Access</button>`}
-          </div>
         </div>
       </article>`;
 
@@ -1685,7 +1681,9 @@ function buildCoursesBreakdownHtml(courses, compact) {
       return `
       <section class="department-block library-department-block library-slider-section">
         <h3><span>${escapeHtml(dep)}</span><b>${sorted.length} ${sorted.length === 1 ? 'Course' : 'Courses'}</b></h3>
-        <div class="library-slider-course-grid">${sorted.map(courseCardHtml).join('')}</div>
+        <div class="library-slider-scroll-wrap">
+          <div class="library-slider-course-grid">${sorted.map(courseCardHtml).join('')}</div>
+        </div>
       </section>`;
     }).join('')}</div>`;
   }
