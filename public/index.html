@@ -3175,6 +3175,205 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   }
 }
 
+
+/* --- Requested Featured Courses cleanup + Courses Library slider cards --- */
+.cinematic-course-slider .feature-slide-play {
+  display:none !important;
+}
+.cinematic-course-slider .feature-slide-top span {
+  min-width:42px;
+  justify-content:center;
+  font-size:clamp(14px, 1.3vw, 20px) !important;
+  padding:8px 12px !important;
+}
+.library-slider-breakdown {
+  display:grid;
+  gap:clamp(18px, 2vw, 28px);
+}
+.library-slider-section {
+  overflow:hidden;
+  border-radius:28px !important;
+  padding:clamp(16px, 1.8vw, 24px) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(37,99,235,.12), transparent 18rem),
+    linear-gradient(180deg,#ffffff,#f8fbff) !important;
+}
+.library-slider-section h3 {
+  align-items:center;
+  margin-bottom:16px !important;
+}
+.library-slider-section h3 span {
+  font:1000 clamp(16px, 1.45vw, 22px)/1.2 var(--font-en);
+  color:#0f172a;
+}
+.library-slider-section h3 b {
+  margin-left:auto;
+  border-radius:999px;
+  background:rgba(37,99,235,.08);
+  border:1px solid rgba(37,99,235,.16);
+  color:#2563eb;
+  padding:6px 11px;
+  font:900 11px/1 var(--font-en);
+}
+.library-slider-course-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+  gap:clamp(13px, 1.45vw, 22px);
+  align-items:stretch;
+}
+.library-slide-course-card {
+  position:relative;
+  min-height:clamp(330px, 34vw, 430px);
+  border-radius:26px;
+  overflow:hidden;
+  cursor:pointer;
+  isolation:isolate;
+  background:#0f172a;
+  border:1px solid rgba(15,23,42,.10);
+  box-shadow:0 18px 42px rgba(15,23,42,.13);
+  transition:transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+.library-slide-course-card:hover {
+  transform:translateY(-5px);
+  box-shadow:0 26px 60px rgba(15,23,42,.20);
+}
+.library-slide-course-card img {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  transform:scale(1.02);
+  transition:transform 4s ease;
+}
+.library-slide-course-card:hover img {
+  transform:scale(1.09);
+}
+.library-slide-course-card::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:
+    linear-gradient(180deg, rgba(2,6,23,.06) 0%, rgba(2,6,23,.12) 44%, rgba(0,0,0,.42) 72%, rgba(0,0,0,.78) 100%),
+    radial-gradient(circle at 20% 18%, rgba(37,99,235,.24), transparent 18rem);
+}
+.library-slide-course-card.is-completed img {
+  filter:saturate(.75) brightness(.82);
+}
+.library-slide-top {
+  position:absolute;
+  top:13px;
+  right:13px;
+  z-index:3;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.library-slide-top span,
+.library-slide-top b {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  backdrop-filter:blur(10px);
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+}
+.library-slide-top span {
+  min-width:40px;
+  height:34px;
+  background:rgba(15,23,42,.58);
+  border:1px solid rgba(255,255,255,.16);
+  color:#fff;
+  font:1000 15px/1 var(--font-en);
+}
+.library-slide-top b {
+  height:34px;
+  padding:0 10px;
+  background:rgba(22,160,107,.92);
+  border:1px solid rgba(187,247,208,.55);
+  color:#fff;
+  font:900 10px/1 var(--font-en);
+  text-transform:uppercase;
+}
+.library-completed-stamp {
+  position:absolute;
+  left:14px;
+  top:14px;
+  z-index:4;
+  transform:rotate(-9deg);
+  border:2px solid rgba(187,247,208,.95);
+  border-radius:12px;
+  background:rgba(22,160,107,.90);
+  color:#fff;
+  padding:7px 12px;
+  font:1000 13px/1 var(--font-en);
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  box-shadow:0 12px 28px rgba(0,0,0,.24);
+}
+.library-slide-overlay {
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:2;
+  padding:clamp(16px, 1.6vw, 22px);
+  color:#fff;
+  background:linear-gradient(180deg, transparent, rgba(0,0,0,.42) 12%, rgba(0,0,0,.74) 100%);
+}
+.library-slide-overlay h4 {
+  margin:0 0 10px;
+  color:#fff;
+  font:1000 clamp(20px, 2vw, 30px)/1.05 var(--font-en);
+  letter-spacing:-.045em;
+  text-shadow:0 10px 28px rgba(0,0,0,.45);
+}
+.library-slide-meta {
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-bottom:9px;
+}
+.library-slide-meta span {
+  border-radius:999px;
+  background:rgba(255,255,255,.13);
+  border:1px solid rgba(255,255,255,.14);
+  color:#e5eefb;
+  padding:6px 9px;
+  font:850 10.5px/1 var(--font-en);
+  backdrop-filter:blur(7px);
+}
+.library-slide-prepared {
+  color:#dbeafe;
+  font-size:11px;
+  font-weight:800;
+  margin-bottom:11px;
+}
+.library-slide-prepared strong {
+  color:#fff;
+}
+.library-slide-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  position:relative;
+  z-index:5;
+}
+.library-slide-actions .btn {
+  min-height:35px;
+  padding:7px 10px;
+  border-radius:12px;
+}
+@media (max-width:680px) {
+  .library-slider-course-grid {
+    grid-template-columns:1fr;
+  }
+  .library-slide-course-card {
+    min-height:360px;
+  }
+}
+
 </style>
 </head>
 <body data-theme="light">
@@ -3266,7 +3465,7 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
             <div>
               <span class="eyebrow">Featured</span>
               <h3>Featured Courses</h3>
-              <p>Visual slider for courses that have an optional feature image.</p>
+              <p>Select one of top common courses</p>
             </div>
           </div>
           <div id="featureSliderBox" class="feature-slider-box">
@@ -3622,6 +3821,6 @@ body, .main, .card, .modal, .topbar, table, th, td, input, select, textarea { di
   </div>
 
   <script src="firebase-config.js"></script>
-  <script type="module" src="app.js?v=publisher-preserve-firestore-image-slider-layout-20260627-29"></script>
+  <script type="module" src="app.js?v=featured-clean-library-slider-cards-20260627-30"></script>
 </body>
 </html>
