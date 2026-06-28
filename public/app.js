@@ -315,7 +315,7 @@ function shortDisplayName(value='') {
 }
 function coursePublisherUser(course) {
   const ids = [course?.publisherUid, course?.postedByUid, course?.managerUid, course?.createdByUid].filter(Boolean);
-  const emails = [course?.publisherEmail, course?.postedByEmail, course?.managerEmail, course?.createdBy, course?.createdByEmail, course?.updatedBy].filter(Boolean).map(v => String(v).toLowerCase());
+  const emails = [course?.publisherEmail, course?.postedByEmail, course?.managerEmail, course?.createdBy, course?.createdByEmail].filter(Boolean).map(v => String(v).toLowerCase());
   return state.users.find(user =>
     ids.includes(user.id) ||
     emails.includes(String(user.email || '').toLowerCase())
@@ -345,13 +345,13 @@ function publisherLibraryDepartment(user) {
 function courseLibraryDepartment(course) {
   const user = coursePublisherUser(course);
   return String(
-    publisherLibraryDepartment(user) ||
     course?.publisherLibraryDepartment ||
     course?.libraryDepartment ||
     course?.courseLibraryDepartment ||
     course?.publisherDepartment ||
     course?.postedByDepartment ||
     course?.createdByDepartment ||
+    publisherLibraryDepartment(user) ||
     coursePublisherDepartment(course) ||
     'Unclassified'
   ).trim() || 'Unclassified';
@@ -845,6 +845,49 @@ function buildDepartmentCoursesGrid(courses=state.courses) {
 }
 
 
+
+function dataUrlByteSize(dataUrl='') {
+  const base64 = String(dataUrl || '').split(',')[1] || '';
+  return Math.ceil(base64.length * 3 / 4);
+}
+function imageFileToCourseDataUrl(file, maxW=720, maxH=1080) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve('');
+    if (!String(file.type || '').startsWith('image/')) return reject(new Error('Feature image file must be an image.'));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Unable to read the selected feature image.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Unable to process the selected feature image.'));
+      img.onload = () => {
+        const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+        const w = Math.max(1, Math.round(img.width * ratio));
+        const h = Math.max(1, Math.round(img.height * ratio));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        let quality = .84;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrlByteSize(dataUrl) > 820000 && quality > .46) {
+          quality -= .08;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (dataUrlByteSize(dataUrl) > 940000) {
+          reject(new Error('Feature image is too large after compression. Please use a smaller image.'));
+          return;
+        }
+        resolve(dataUrl);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function extractDriveFileId(url='') {
   const raw = String(url || '');
   return (raw.match(/\/d\/([a-zA-Z0-9_-]+)/) || raw.match(/[?&]id=([a-zA-Z0-9_-]+)/) || [])[1] || '';
@@ -857,13 +900,17 @@ function normalizedImageUrl(url='') {
   return raw;
 }
 function courseFeatureImageUrl(course) {
-  return normalizedImageUrl(
-    course?.featureImageUrl ||
-    course?.sliderImageUrl ||
-    course?.courseImageUrl ||
-    course?.coverImageUrl ||
-    course?.thumbnailUrl ||
-    ''
+  return (
+    course?.featureImageDataUrl ||
+    course?.sliderImageDataUrl ||
+    normalizedImageUrl(
+      course?.featureImageUrl ||
+      course?.sliderImageUrl ||
+      course?.courseImageUrl ||
+      course?.coverImageUrl ||
+      course?.thumbnailUrl ||
+      ''
+    )
   );
 }
 function courseFeaturePublishedLabel(course) {
@@ -999,7 +1046,6 @@ function renderDashboard() {
   if ($('attendanceAccomplished')) $('attendanceAccomplished').textContent = completed;
   if ($('dashboardPlanner')) $('dashboardPlanner').innerHTML = buildPlannerHtml(trackedCourses);
   if ($('featureSliderBox')) $('featureSliderBox').innerHTML = buildFeatureSliderHtml(state.courses);
-  if ($('homeDepartmentCoursesGrid')) $('homeDepartmentCoursesGrid').innerHTML = buildDepartmentCoursesGrid(state.courses);
 
   $('dashboardCourses').innerHTML = buildCoursesBreakdownHtml(state.courses.slice(0, 10), true);
   const dueCourses = state.courses.filter(c => c.isDue);
@@ -1868,6 +1914,11 @@ async function saveCourse() {
     if (oldCourse && !explicitId) throw new Error('A course with the same name already exists. Open it from Managed Courses to edit it.');
     if (oldCourse && !canEditCourse(oldCourse)) throw new Error('Only the original course publisher or Super Admin can update this course.');
 
+    const featureImageFile = $('courseFeatureImageFile')?.files?.[0] || null;
+    const existingFeatureImageDataUrl = oldCourse?.featureImageDataUrl || oldCourse?.sliderImageDataUrl || '';
+    const featureImageDataUrl = featureImageFile ? await imageFileToCourseDataUrl(featureImageFile) : existingFeatureImageDataUrl;
+
+
     const baseData = {
       courseName, courseKey, courseDate, department, departments,
       contentUrl: $('courseContentUrl').value.trim(),
@@ -1879,6 +1930,8 @@ async function saveCourse() {
       brief: $('courseBrief').value.trim(), description: $('courseDescription').value.trim(),
       featureImageUrl: $('courseFeatureImageUrl')?.value.trim() || '',
       sliderImageUrl: $('courseFeatureImageUrl')?.value.trim() || '',
+      featureImageDataUrl,
+      sliderImageDataUrl: featureImageDataUrl,
       files: parseFilesText($('courseFiles').value), questions: readQuestionsBuilder(),
       certificateTemplateUrl: $('courseCertificateTemplateUrl')?.value.trim() || '',
       certificateGeneratorUrl: window.CARELEARN_CERTIFICATE_WEBAPP_URL || localStorage.getItem('carelearn.certificateScriptUrl') || $('certificateScriptUrl')?.value.trim() || oldCourse?.certificateGeneratorUrl || DEFAULT_CERTIFICATE_GENERATOR_URL || '',
@@ -2453,7 +2506,8 @@ function editCourse(id) {
   $('courseBrief').value = c.brief || '';
   $('courseDescription').value = c.description || '';
   $('courseFiles').value = (c.files || []).map(f => `${f.name || 'Course File'} | ${f.url}`).join('\n');
-  if ($('courseFeatureImageUrl')) $('courseFeatureImageUrl').value = courseFeatureImageUrl(c) || c.featureImageUrl || c.sliderImageUrl || '';
+  if ($('courseFeatureImageUrl')) $('courseFeatureImageUrl').value = c.featureImageUrl || c.sliderImageUrl || '';
+  if ($('courseFeatureImageFile')) $('courseFeatureImageFile').value = '';
   if ($('courseCertificateTemplateUrl')) $('courseCertificateTemplateUrl').value = courseCertificateTemplateUrl(c);
   $('questionsBuilder').innerHTML = '';
   (c.questions || []).forEach(addQuestionEditor);
